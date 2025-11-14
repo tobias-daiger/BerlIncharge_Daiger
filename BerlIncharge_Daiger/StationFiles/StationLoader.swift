@@ -10,7 +10,7 @@ import Foundation
 enum StationLoader {
     static func load() -> [Station] {
         guard let url = Bundle.main.url(forResource: "stations", withExtension: "json") else {
-            print("stations.json nicht gefunden.")
+            print("stations.json not found")
             return []
         }
         do {
@@ -18,7 +18,7 @@ enum StationLoader {
             let stations = try JSONDecoder().decode([Station].self, from: data)
             return stations
         } catch {
-            print("Fehler beim Laden/Decodieren von stations.json: \(error)")
+            print("Error decoding. \(error)")
             return []
         }
     }

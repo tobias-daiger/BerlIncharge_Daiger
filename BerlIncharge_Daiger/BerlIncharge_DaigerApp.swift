@@ -12,7 +12,6 @@ struct BerlIncharge_DaigerApp: App {
     var body: some Scene {
         WindowGroup {
             InchargeView()
-            //update
         }
     }
 }

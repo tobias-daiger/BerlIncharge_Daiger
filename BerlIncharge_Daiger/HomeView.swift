@@ -15,7 +15,6 @@ struct HomeView: View {
             List(cars) { car in
                 NavigationLink(value: car) {
                     HStack(spacing: 12) {
-                        // Platzhalter-Bild: zeigt Systembild, wenn Asset noch fehlt
                         CarImagePlaceholder(imageName: car.imageName, contentMode: .fit)
                             .frame(width: 72, height: 72)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -35,7 +34,6 @@ struct HomeView: View {
 
                         Spacer()
 
-                        // Kompakter, untereinander: Ladezustand und Restreichweite rechts
                         VStack(alignment: .trailing, spacing: 4) {
                             HStack(spacing: 4) {
                                 Image(systemName: "battery.100")
@@ -78,7 +76,6 @@ struct HomeView: View {
     }
 }
 
-// Bild-Platzhalter: versucht Asset zu laden, fällt auf SF Symbol zurück
 struct CarImagePlaceholder: View {
     enum ContentMode {
         case fill
@@ -113,7 +110,6 @@ struct CarImagePlaceholder: View {
     }
 }
 
-// Detailansicht mit 2x2-Grid der vier Boxen
 struct CarDetailView: View {
     let car: Car
 
@@ -126,7 +122,6 @@ struct CarDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Header mit Bild
                 CarImagePlaceholder(imageName: car.imageName, contentMode: .fill)
                     .frame(height: 180)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -151,7 +146,6 @@ struct CarDetailView: View {
                         )
                         .padding(8)
                     }
-                    // SoC und Restreichweite oben im Bild sichtbar machen (rechts unten, untereinander)
                     .overlay(alignment: .bottomTrailing) {
                         VStack(alignment: .trailing, spacing: 8) {
                             HStack(spacing: 8) {
@@ -171,11 +165,11 @@ struct CarDetailView: View {
                                     .monospacedDigit()
                             }
                         }
-                        .padding(.horizontal, 14)   // etwas größerer Hintergrund
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(Color.black.opacity(0.6)) // leicht dunkler, bessere Lesbarkeit
+                                .fill(Color.black.opacity(0.6))
                         )
                         .padding(12)
                         .accessibilityElement(children: .combine)
@@ -183,7 +177,6 @@ struct CarDetailView: View {
                         .accessibilityValue("\(car.stateOfChargePercent), \(car.remainingRangeKm)")
                     }
 
-                // Auswahl-Button über dem Grid
                 Button(action: {
                     showTransientToast()
                 }) {
@@ -193,10 +186,9 @@ struct CarDetailView: View {
                         .foregroundStyle(.white)
                         .padding(.vertical, 10)
                 }
-                // Eigene, feste Gestaltung: grauer Hintergrund + weiße Schrift
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(.systemGray)) // oder .gray für statisches Grau
+                        .fill(Color(.systemGray))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -204,7 +196,6 @@ struct CarDetailView: View {
                 )
                 .controlSize(.regular)
 
-                // 2x2 Grid
                 LazyVGrid(columns: gridItems, spacing: 12) {
                     StatBox(title: "Leistung", value: car.power, symbol: "engine.combustion")
                     StatBox(title: "Beschleunigung 0.100", value: car.accelaration0To100kmh, symbol: "engine.combustion")
@@ -237,7 +228,6 @@ struct CarDetailView: View {
     }
 }
 
-// Kleine Box-Komponente
 struct StatBox: View {
     let title: String
     let value: String
@@ -266,7 +256,7 @@ struct StatBox: View {
     }
 }
 
-// Einfache Toast-Ansicht
+//https://www.youtube.com/watch?v=pC6qGSSh9bI
 struct ToastView: View {
     let text: String
 
