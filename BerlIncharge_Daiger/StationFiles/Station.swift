@@ -54,17 +54,17 @@ struct Station: Identifiable, Hashable, Decodable {
     }
 
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = UUID()
-        self.pointName = try c.decode(String.self, forKey: .pointName)
-        self.powerType = try c.decode(String.self, forKey: .powerType)
-        self.advertisedPower = try c.decode(String.self, forKey: .advertisedPower)
-        self.status = try c.decode(String.self, forKey: .status)
-        self.publicAccess = try c.decode(Bool.self, forKey: .publicAccess)
-        self.latitude = try c.decode(Double.self, forKey: .latitude)
-        self.longitude = try c.decode(Double.self, forKey: .longitude)
-        self.street = try c.decode(String.self, forKey: .street)
-        self.houseNumber = try c.decode(String.self, forKey: .houseNumber)
-        self.postalCode = try c.decode(String.self, forKey: .postalCode)
+        self.pointName = try container.decode(String.self, forKey: .pointName)
+        self.powerType = try container.decode(String.self, forKey: .powerType)
+        self.advertisedPower = try container.decode(String.self, forKey: .advertisedPower)
+        self.status = try container.decode(String.self, forKey: .status)
+        self.publicAccess = try container.decode(Bool.self, forKey: .publicAccess)
+        self.latitude = try container.decode(Double.self, forKey: .latitude)
+        self.longitude = try container.decode(Double.self, forKey: .longitude)
+        self.street = try container.decode(String.self, forKey: .street)
+        self.houseNumber = try container.decode(String.self, forKey: .houseNumber)
+        self.postalCode = try container.decode(String.self, forKey: .postalCode)
     }
 }
