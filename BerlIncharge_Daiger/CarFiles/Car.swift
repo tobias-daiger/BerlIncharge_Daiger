@@ -3,7 +3,9 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 25.10.25.
-//
+// https://www.youtube.com/watch?v=H9mt8WjpZgM
+// https://www.youtube.com/watch?v=Ve_oGVo6X9U
+// https://www.youtube.com/watch?v=Tz6MZE16dfE
 
 import Foundation
 

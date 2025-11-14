@@ -3,7 +3,8 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 24.10.25.
-//
+//searchable
+// https://www.youtube.com/watch?v=iTqwa0DCIMA
 
 import SwiftUI
 

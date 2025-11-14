@@ -3,7 +3,7 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 24.10.25.
-//
+// https://www.youtube.com/watch?v=98rQZbwxMFI&t=460s
 
 import SwiftUI
 import MapKit
@@ -348,7 +348,8 @@ struct MapView: View {
 
         position = .region(region)
     }
-
+//geoJSON
+//https://www.youtube.com/watch?v=B0YnIOER8MI&t=250s
     private func loadBerlinGeoJSON() {
         guard let url = Bundle.main.url(forResource: "berlingeo", withExtension: "geojson") else {
             print("berlingeo.geojson nicht im Bundle gefunden.")
@@ -743,6 +744,9 @@ private extension MKPolyline {
     MapView()
 }
 
+//User Location
+//https://www.youtube.com/watch?v=hWMkimzIQoU
+//https://www.youtube.com/watch?v=98rQZbwxMFI&t=460s
 @MainActor
 final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
