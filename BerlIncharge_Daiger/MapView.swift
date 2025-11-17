@@ -20,24 +20,14 @@ struct MapView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
         )
     )
-
-    // Für das Bottom Sheet
     @State private var selectedStation: Station?
-
-    // GeoJSON Overlays
     @State private var berlinPolylines: [MKPolyline] = []
     @State private var berlinPolygons: [MKPolygon] = []
-
-    // Routing-State
     @State private var activeRoute: MKRoute?
     @State private var activeRoutePolyline: MKPolyline?
-
-    // Via-Routing-State (A->C->B)
     @State private var compositePolyline: MKPolyline?
     @State private var compositeDistance: CLLocationDistance = 0
     @State private var compositeTime: TimeInterval = 0
-
-    // Suche
     @State private var searchText: String = ""
     @State private var searchResultItem: MKMapItem?
     @State private var isSearching: Bool = false
@@ -47,22 +37,18 @@ struct MapView: View {
         NavigationView {
             ZStack {
                 Map(position: $position) {
-                    // User-Location (blauer Punkt)
                     UserAnnotation()
 
-                    // Berliner Grenze als Polyline (kräftiger, gut sichtbar)
                     ForEach(berlinPolylines, id: \.self) { polyline in
                         MapPolyline(polyline)
                             .stroke(Color.black, lineWidth: 3)
                     }
 
-                    // Optional: Flächenfüllung
                     ForEach(berlinPolygons, id: \.self) { polygon in
                         MapPolygon(polygon)
                             .foregroundStyle(Color.black.opacity(0.2))
                     }
 
-                    // Aktive Route zeichnen (über den Grenzen, unter den Markern)
                     if let composite = compositePolyline {
                         MapPolyline(composite)
                             .stroke(Color("brandPrimary"), lineWidth: 6)
@@ -71,14 +57,11 @@ struct MapView: View {
                             .stroke(Color("brandPrimary"), lineWidth: 6)
                     }
 
-                    // Stationen als Marker
                     ForEach(stations) { station in
                         let coordinate = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
 
-                        // AC/DC-Erkennung
                         let isDC = station.powerType.lowercased().contains("dc")
 
-                        // Einheitliches Symbol, Farbe unterscheidet
                         let symbolName = "ev.charger"
                         let color = isDC ? Color("brandSecondary") : Color("brandPrimary")
 
@@ -100,7 +83,6 @@ struct MapView: View {
                         }
                     }
 
-                    // Suchziel-Pin (falls vorhanden)
                     if let item = searchResultItem {
                         let coord = item.placemark.coordinate
                         Annotation(item.name ?? "Ziel", coordinate: coord) {
@@ -118,7 +100,6 @@ struct MapView: View {
                 }
                 .ignoresSafeArea()
 
-                // Overlay: Routeninfo (rechts oben)
                 if hasAnyActiveRoute {
                     VStack {
                         HStack {
@@ -145,7 +126,6 @@ struct MapView: View {
                     .transition(.opacity)
                 }
 
-                // Overlay: Route entfernen – nach unten links verlegt
                 if hasAnyActiveRoute {
                     VStack {
                         Spacer()
@@ -177,7 +157,6 @@ struct MapView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // Overlay: Suchziel-Info + Navigieren/AC/DC (oben)
                 if let item = searchResultItem {
                     VStack {
                         HStack(alignment: .center, spacing: 10) {
@@ -199,12 +178,8 @@ struct MapView: View {
 
                             Spacer(minLength: 12)
 
-                            // Buttons: gleiche Höhe, kein Umbruch, genügend Padding
-                            // In sehr engen Breiten darf der Stack umbrechen.
                             let buttonHeight: CGFloat = 32
 
-                            // Wir nutzen einen flexiblen Flow: zwei Zeilen möglich bei wenig Platz.
-                            // In iPhone-Querformat/engem Platz verhindert dies Quetschen.
                             VStack(alignment: .trailing, spacing: 6) {
                                 HStack(spacing: 6) {
                                     Button {
@@ -265,7 +240,7 @@ struct MapView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .background(
-                            // Material-Hintergrund für bessere Lesbarkeit und adaptive Optik
+
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .fill(.ultraThinMaterial)
                                 .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
@@ -387,8 +362,6 @@ struct MapView: View {
         }
     }
 
-    // MARK: - Suche
-
     @MainActor
     private func performSearch() async {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -406,7 +379,6 @@ struct MapView: View {
             if let first = response.mapItems.first {
                 searchResultItem = first
 
-                // Karte auf das Ziel zentrieren
                 let coord = first.placemark.coordinate
                 let region = MKCoordinateRegion(center: coord,
                                                 span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02))
@@ -433,8 +405,6 @@ struct MapView: View {
         return parts.joined(separator: " ")
     }
 
-    // MARK: - Routing (einfach)
-
     @MainActor
     private func requestRoute(to station: Station) async {
         guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
@@ -442,7 +412,6 @@ struct MapView: View {
             return
         }
 
-        // Reset composite state
         compositePolyline = nil
         compositeDistance = 0
         compositeTime = 0
@@ -466,7 +435,6 @@ struct MapView: View {
                 updateCameraToFit(polyline: route.polyline)
 
                 selectedStation = nil
-                // Suchziel-Overlay schließen
                 searchResultItem = nil
             }
         } catch {
@@ -481,7 +449,6 @@ struct MapView: View {
             return
         }
 
-        // Reset composite state
         compositePolyline = nil
         compositeDistance = 0
         compositeTime = 0
@@ -502,15 +469,12 @@ struct MapView: View {
 
                 updateCameraToFit(polyline: route.polyline)
 
-                // Suchziel-Overlay schließen
                 searchResultItem = nil
             }
         } catch {
             print("Routenberechnung fehlgeschlagen: \(error)")
         }
     }
-
-    // MARK: - Routing (Via-Station / Composite, optimiert)
 
     @MainActor
     private func buildCompositeRouteOptimized(to item: MKMapItem, requireDC: Bool) async {
@@ -519,15 +483,13 @@ struct MapView: View {
             return
         }
 
-        // 1) Direkte Route A->B
         guard let direct = await calculateRoute(from: userLocation, to: item.placemark.coordinate) else {
             searchErrorMessage = "Direkte Route zum Ziel konnte nicht berechnet werden."
             return
         }
-
-        // 2) Kandidaten vorfiltern (AC/DC + Korridor)
-        let corridorMeters: CLLocationDistance = 2000 // 2 km Korridor
-        let deviationWeight: CLLocationDistance = 300 // 300 m „Strafe“ für seitliche Abweichung
+        
+        let corridorMeters: CLLocationDistance = 2000
+        let deviationWeight: CLLocationDistance = 300
         let candidateLimit = 30
 
         let filtered = filterCandidatesAlongCorridor(
@@ -542,21 +504,19 @@ struct MapView: View {
             return
         }
 
-        // 3) Beste Station anhand Score finden
         var bestScore = Double.greatestFiniteMagnitude
         var bestR1: MKRoute?
         var bestR2: MKRoute?
 
         for station in filtered {
             let c = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
-            let dev = distance(point: c, toPolyline: direct.polyline) // Abweichung von der direkten Route
+            let dev = distance(point: c, toPolyline: direct.polyline)
 
-            // Teilrouten
             guard let r1 = await calculateRoute(from: userLocation, to: c) else { continue }
             guard let r2 = await calculateRoute(from: c, to: item.placemark.coordinate) else { continue }
 
             let total = r1.distance + r2.distance
-            let score = Double(total) + Double(dev + deviationWeight) // kleine Zusatzstrafe
+            let score = Double(total) + Double(dev + deviationWeight)
 
             if score < bestScore {
                 bestScore = score
@@ -570,10 +530,8 @@ struct MapView: View {
             return
         }
 
-        // 4) Zusammenführen und anzeigen
         let merged = combine(routeA: route1, routeB: route2)
 
-        // State: Composite aktiv, einfache Route löschen
         activeRoute = nil
         activeRoutePolyline = nil
 
@@ -583,11 +541,9 @@ struct MapView: View {
 
         updateCameraToFit(polyline: merged)
 
-        // Suchziel-Overlay schließen
         searchResultItem = nil
     }
 
-    // Direkte Teilroute
     private func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
         let req = MKDirections.Request()
         req.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
@@ -604,7 +560,6 @@ struct MapView: View {
         }
     }
 
-    // Korridor-Filter: nur Stationen nahe der direkten Route und passendem Typ
     private func filterCandidatesAlongCorridor(stations: [Station],
                                                requireDC: Bool,
                                                polyline: MKPolyline,
@@ -623,7 +578,6 @@ struct MapView: View {
         }
     }
 
-    // Minimaler Abstand eines Punktes zur Polyline
     private func distance(point: CLLocationCoordinate2D, toPolyline polyline: MKPolyline) -> CLLocationDistance {
         let coords = polyline.coordinates
         guard coords.count > 1 else { return .greatestFiniteMagnitude }
@@ -639,11 +593,10 @@ struct MapView: View {
         return minDist
     }
 
-    // Abstand von Punkt zu Liniensegment in Meter (einfache Geometrie auf Erdkugel-Nähe)
     private func distanceFromPoint(_ p: CLLocationCoordinate2D,
                                    toSegmentFrom a: CLLocationCoordinate2D,
                                    to b: CLLocationCoordinate2D) -> CLLocationDistance {
-        // Konvertiere in MKMapPoint für flache Approximation
+
         let pMP = MKMapPoint(p)
         let aMP = MKMapPoint(a)
         let bMP = MKMapPoint(b)
@@ -655,11 +608,10 @@ struct MapView: View {
         let ab2 = abx * abx + aby * aby
 
         if ab2 == 0 {
-            // a==b
+
             return pMP.distance(to: aMP)
         }
 
-        // Projektion von AP auf AB, geklemmt auf [0,1]
         let t = max(0, min(1, (apx * abx + apy * aby) / ab2))
         let proj = MKMapPoint(x: aMP.x + t * abx, y: aMP.y + t * aby)
         return pMP.distance(to: proj)
@@ -692,7 +644,6 @@ struct MapView: View {
         compositePolyline = nil
         compositeDistance = 0
         compositeTime = 0
-        // Wenn Route entfernt wird, auch das Suchziel ausblenden
         searchResultItem = nil
     }
 
@@ -797,7 +748,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
     }
 }
 
-// Kompakte Detailansicht fürs Bottom Sheet
 private struct StationBottomSheetView: View {
     let station: Station
     let onClose: () -> Void
@@ -814,7 +764,6 @@ private struct StationBottomSheetView: View {
             ZStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Titel + Adresse
                         VStack(alignment: .leading, spacing: 4) {
                             Text(station.pointName)
                                 .font(.title3).bold()
@@ -824,10 +773,8 @@ private struct StationBottomSheetView: View {
                                 .lineLimit(2)
                         }
 
-                        // Navigation-Button im gleichen Stil wie in CarDetailView
                         Button(action: {
                             onNavigate(station)
-                            // Optional weiterhin ein kurzer Toast als Feedback
                             triggerToast()
                         }) {
                             HStack(spacing: 8) {
@@ -849,7 +796,6 @@ private struct StationBottomSheetView: View {
                         )
                         .controlSize(.regular)
 
-                        // 2x2 Grid mit StatBox wie in HomeView
                         LazyVGrid(columns: gridItems, spacing: 12) {
                             StatBox(title: "Status", value: station.status, symbol: "bolt.circle")
                             StatBox(title: "Leistung beworben", value: station.advertisedPower, symbol: "bolt.fill")
@@ -862,7 +808,6 @@ private struct StationBottomSheetView: View {
                     .padding(16)
                 }
 
-                // Toast-Overlay
                 if showToast {
                     VStack {
                         Text("Navigiere zu \(station.pointName)")
