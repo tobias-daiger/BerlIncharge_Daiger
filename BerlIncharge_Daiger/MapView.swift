@@ -20,6 +20,7 @@ struct MapView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
         )
     )
+    
     @State private var selectedStation: Station?
     @State private var berlinPolylines: [MKPolyline] = []
     @State private var berlinPolygons: [MKPolygon] = []
@@ -32,7 +33,7 @@ struct MapView: View {
     @State private var searchResultItem: MKMapItem?
     @State private var isSearching: Bool = false
     @State private var searchErrorMessage: String?
-
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -82,7 +83,7 @@ struct MapView: View {
                             .buttonStyle(.plain)
                         }
                     }
-
+                    
                     if let item = searchResultItem {
                         let coord = item.placemark.coordinate
                         Annotation(item.name ?? "Ziel", coordinate: coord) {
@@ -352,7 +353,7 @@ struct MapView: View {
                     }
                 }
             }
-
+            
             DispatchQueue.main.async {
                 self.berlinPolylines = polylines
                 self.berlinPolygons = polygons
@@ -404,7 +405,7 @@ struct MapView: View {
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " ")
     }
-
+    
     @MainActor
     private func requestRoute(to station: Station) async {
         guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
@@ -475,7 +476,7 @@ struct MapView: View {
             print("Routenberechnung fehlgeschlagen: \(error)")
         }
     }
-
+    
     @MainActor
     private func buildCompositeRouteOptimized(to item: MKMapItem, requireDC: Bool) async {
         guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
@@ -543,7 +544,7 @@ struct MapView: View {
 
         searchResultItem = nil
     }
-
+    
     private func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
         let req = MKDirections.Request()
         req.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
