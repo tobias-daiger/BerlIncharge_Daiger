@@ -9,70 +9,159 @@ import SwiftUI
 
 struct HomeView: View {
     @State private var cars: [Car] = []
+    @Binding var selectedCar: Car?
 
     var body: some View {
         NavigationStack {
-            List(cars) { car in
-                NavigationLink(value: car) {
-                    HStack(spacing: 12) {
-                        CarImagePlaceholder(imageName: car.imageName, contentMode: .fit)
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            List {
+                // Statusbox oben über der Liste
+                Section {
+                    StatusBox(
+                        selectedCar: selectedCar,
+                        onClear: { selectedCar = nil }
+                    )
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Text(car.name)
-                                    .font(.headline)
-                                Text(car.model)
+                // Fahrzeugliste
+                ForEach(cars) { car in
+                    NavigationLink(value: car) {
+                        HStack(spacing: 12) {
+                            CarImagePlaceholder(imageName: car.imageName, contentMode: .fit)
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(car.name)
+                                        .font(.headline)
+                                    Text(car.model)
+                                        .font(.subheadline)
+                                }
+
+                                Text(car.brand)
                                     .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
 
-                            Text(car.brand)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 4) {
+                                // Ladezustand berechnet: remainingRangeKm / maxRangeKm
+                                HStack(spacing: 4) {
+                                    Image(systemName: "battery.100")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(computedSocPercentText(for: car))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+
+                                HStack(spacing: 4) {
+                                    Image(systemName: "road.lanes")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(car.remainingRangeKm)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                            }
                         }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 4) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "battery.100")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(car.stateOfChargePercent)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("Ladezustand")
-                            .accessibilityValue(car.stateOfChargePercent)
-
-                            HStack(spacing: 4) {
-                                Image(systemName: "road.lanes")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(car.remainingRangeKm)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("Restreichweite")
-                            .accessibilityValue(car.remainingRangeKm)
-                        }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle("Home")
             .navigationDestination(for: Car.self) { car in
-                CarDetailView(car: car)
+                CarDetailView(car: car) { picked in
+                    selectedCar = picked
+                }
             }
             .onAppear {
                 cars = CarLoader.load()
             }
         }
+    }
+
+    // MARK: - Helpers
+    private func computedSocPercentText(for car: Car) -> String {
+        func extractNumber(_ s: String) -> Double? {
+            let digits = s
+                .replacingOccurrences(of: ",", with: ".")
+                .filter { ("0"..."9").contains($0) || $0 == "." }
+            return Double(digits)
+        }
+
+        let remaining = extractNumber(car.remainingRangeKm) ?? 0
+        let maxRange = extractNumber(car.maxRangeKm) ?? 0
+        guard maxRange > 0 else { return "0%" }
+
+        let ratio = max(0, min(1, remaining / maxRange))
+        let percent = (ratio * 100).rounded()
+        return String(format: "%.0f%%", percent)
+    }
+}
+
+private struct StatusBox: View {
+    let selectedCar: Car?
+    let onClear: () -> Void
+
+    var body: some View {
+        // Extracted to simplify type-checking
+        let hasSelection = (selectedCar != nil)
+        let iconName = hasSelection ? "car.fill" : "car"
+        // Use AnyShapeStyle to avoid overload complexity with ternary
+        let iconStyle: AnyShapeStyle = hasSelection ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary)
+
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: iconName)
+                .imageScale(.large)
+                .foregroundStyle(iconStyle)
+
+            VStack(alignment: .leading, spacing: 2) {
+                if let car = selectedCar {
+                    Text("\(car.name) ausgewählt")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("\(car.brand) • \(car.model)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                } else {
+                    Text("Kein Fahrzeug ausgewählt")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("Wähle ein Fahrzeug aus der Liste.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if hasSelection {
+                Button {
+                    onClear()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .imageScale(.large)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(.separator).opacity(0.3), lineWidth: 0.5)
+        )
     }
 }
 
@@ -112,6 +201,7 @@ struct CarImagePlaceholder: View {
 
 struct CarDetailView: View {
     let car: Car
+    var onSelect: ((Car) -> Void)?
 
     @State private var showSelectionToast = false
 
@@ -172,12 +262,10 @@ struct CarDetailView: View {
                                 .fill(Color.black.opacity(0.6))
                         )
                         .padding(12)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Ladezustand und Restreichweite")
-                        .accessibilityValue("\(car.stateOfChargePercent), \(car.remainingRangeKm)")
                     }
 
                 Button(action: {
+                    onSelect?(car)
                     showTransientToast()
                 }) {
                     Text("Fahrzeug auswählen")
@@ -275,5 +363,6 @@ struct ToastView: View {
 }
 
 #Preview {
-    HomeView()
+    HomeView(selectedCar: .constant(nil))
 }
+

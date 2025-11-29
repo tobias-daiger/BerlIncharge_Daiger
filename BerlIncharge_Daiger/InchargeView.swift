@@ -8,14 +8,16 @@
 import SwiftUI
 
 struct InchargeView: View {
+    @State private var selectedCar: Car?
+
     var body: some View {
         TabView {
-            HomeView()
+            HomeView(selectedCar: $selectedCar)
                 .tabItem {
                     Image(systemName: "house")
                     Text("Home")
                 }
-            MapView()
+            MapView(selectedCar: $selectedCar)
                 .tabItem {
                     Image(systemName: "map")
                     Text("Map")
@@ -33,3 +35,4 @@ struct InchargeView: View {
 #Preview {
     InchargeView()
 }
+

@@ -13,6 +13,7 @@ import Combine
 struct MapView: View {
     @StateObject private var viewModel = MapViewModel()
     @State private var stations: [Station] = []
+    @Binding var selectedCar: Car?
 
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -95,7 +96,6 @@ struct MapView: View {
                                         .fill(Color(.systemBackground))
                                         .shadow(radius: 1.5)
                                 )
-                                .accessibilityLabel(item.name ?? "Suchziel")
                         }
                     }
                 }
@@ -106,17 +106,78 @@ struct MapView: View {
                         HStack {
                             Spacer()
                             if let summary = currentRouteSummaryText() {
-                                Text(summary)
-                                    .font(.footnote).bold()
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(Color.black.opacity(0.7))
-                                    )
-                                    .accessibilityLabel("Routeninformation")
-                                    .accessibilityValue(summary)
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text(summary)
+                                        .font(.footnote).bold()
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(Color.black.opacity(0.7))
+                                        )
+
+                                    // Zusatz: Fahrzeuggestützte, berechnete Werte unter der Route
+                                    if let computed = computedCarStats() {
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "battery.100")
+                                                Text(computed.socText)
+                                            }
+                                            .font(.footnote).bold()
+                                            .foregroundStyle(computed.isCritical ? Color.red : Color.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule(style: .continuous)
+                                                    .fill(Color.black.opacity(0.7))
+                                            )
+
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "road.lanes")
+                                                Text(computed.rangeText)
+                                            }
+                                            .font(.footnote).bold()
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule(style: .continuous)
+                                                    .fill(Color.black.opacity(0.7))
+                                            )
+                                        }
+                                        .transition(.opacity)
+                                    } else {
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "battery.100")
+                                                Text("0%")
+                                            }
+                                            .font(.footnote).bold()
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule(style: .continuous)
+                                                    .fill(Color.black.opacity(0.7))
+                                            )
+
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "road.lanes")
+                                                Text("0 km")
+                                            }
+                                            .font(.footnote).bold()
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule(style: .continuous)
+                                                    .fill(Color.black.opacity(0.7))
+                                            )
+                                        }
+                                        .transition(.opacity)
+                                    }
+                                }
                             }
                         }
                         .padding(.top, 12)
@@ -148,7 +209,6 @@ struct MapView: View {
                                         .fill(Color.black.opacity(0.75))
                                 )
                             }
-                            .accessibilityLabel("Route entfernen")
 
                             Spacer()
                         }
@@ -196,7 +256,6 @@ struct MapView: View {
                                             .background(Capsule().fill(Color("brandPrimary")))
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("Route über AC-Ladestation")
 
                                     Button {
                                         Task { await buildCompositeRouteOptimized(to: item, requireDC: true) }
@@ -211,7 +270,6 @@ struct MapView: View {
                                             .background(Capsule().fill(Color("brandSecondary")))
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("Route über DC-Ladestation")
 
                                     Button {
                                         Task { await requestRoute(to: item) }
@@ -232,7 +290,6 @@ struct MapView: View {
                                         )
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("Direkte Navigation zum Suchziel starten")
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             }
@@ -257,7 +314,6 @@ struct MapView: View {
             .onAppear {
                 viewModel.start()
                 stations = StationLoader.load()
-                centerMapIfNeeded()
                 loadBerlinGeoJSON()
             }
             .navigationTitle("Map View")
@@ -298,32 +354,55 @@ struct MapView: View {
         activeRoutePolyline != nil || compositePolyline != nil
     }
 
-    private func centerMapIfNeeded() {
-        guard !stations.isEmpty else { return }
+    // MARK: - Berechnung der angezeigten Fahrzeugwerte
+    private struct ComputedStats {
+        let socText: String
+        let rangeText: String
+        let isCritical: Bool
+    }
 
-        var minLat = stations.first!.latitude
-        var maxLat = stations.first!.latitude
-        var minLon = stations.first!.longitude
-        var maxLon = stations.first!.longitude
+    private func computedCarStats() -> ComputedStats? {
+        guard let car = selectedCar else { return nil }
 
-        for s in stations {
-            minLat = min(minLat, s.latitude)
-            maxLat = max(maxLat, s.latitude)
-            minLon = min(minLon, s.longitude)
-            maxLon = max(maxLon, s.longitude)
+        // Distanz der aktiven Route in km (Composite hat Vorrang)
+        let routeKm: Double? = {
+            if compositePolyline != nil {
+                return compositeDistance / 1000.0
+            } else if let route = activeRoute {
+                return route.distance / 1000.0
+            } else {
+                return nil
+            }
+        }()
+
+        guard let tripKm = routeKm else { return nil }
+
+        // Helper zum Parsen von Zahlen aus Strings wie "708", "708 km", "100%", "100 %"
+        func extractNumber(_ s: String) -> Double? {
+            let digits = s
+                .replacingOccurrences(of: ",", with: ".")
+                .filter { ("0"..."9").contains($0) || $0 == "." }
+            return Double(digits)
         }
 
-        let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2.0,
-                                            longitude: (minLon + maxLon) / 2.0)
+        let startingRangeKm = extractNumber(car.remainingRangeKm) ?? 0
+        let maxRangeKm = extractNumber(car.maxRangeKm) ?? 0
 
-        let latDelta = max(0.01, (maxLat - minLat) * 1.3)
-        let lonDelta = max(0.01, (maxLon - minLon) * 1.3)
+        // Neue Restreichweite nach Trip
+        let adjustedRangeKm = max(0, startingRangeKm - tripKm)
 
-        let region = MKCoordinateRegion(center: center,
-                                        span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta))
+        // Ladezustand in Prozent relativ zur Max-Range
+        let socRatio = maxRangeKm > 0 ? adjustedRangeKm / maxRangeKm : 0
+        let socPercent = max(0, min(1, socRatio)) * 100.0
 
-        position = .region(region)
+        // Anzeige-Strings (gekappt bei 0)
+        let rangeText = String(format: "%.0f km", adjustedRangeKm.rounded())
+        let socText = String(format: "%.0f%%", socPercent.rounded())
+
+        let isCritical = socPercent <= 0.0
+        return ComputedStats(socText: socText, rangeText: rangeText, isCritical: isCritical)
     }
+
 //geoJSON
 //https://www.youtube.com/watch?v=B0YnIOER8MI&t=250s
     private func loadBerlinGeoJSON() {
@@ -414,7 +493,7 @@ struct MapView: View {
         }
 
         compositePolyline = nil
-        compositeDistance = 0
+               compositeDistance = 0
         compositeTime = 0
 
         let sourcePlacemark = MKPlacemark(coordinate: userLocation)
@@ -432,9 +511,6 @@ struct MapView: View {
             if let route = response.routes.first {
                 activeRoute = route
                 activeRoutePolyline = route.polyline
-
-                updateCameraToFit(polyline: route.polyline)
-
                 selectedStation = nil
                 searchResultItem = nil
             }
@@ -467,9 +543,6 @@ struct MapView: View {
             if let route = response.routes.first {
                 activeRoute = route
                 activeRoutePolyline = route.polyline
-
-                updateCameraToFit(polyline: route.polyline)
-
                 searchResultItem = nil
             }
         } catch {
@@ -539,9 +612,6 @@ struct MapView: View {
         compositePolyline = merged
         compositeDistance = route1.distance + route2.distance
         compositeTime = route1.expectedTravelTime + route2.expectedTravelTime
-
-        updateCameraToFit(polyline: merged)
-
         searchResultItem = nil
     }
     
@@ -624,13 +694,6 @@ struct MapView: View {
         coordsA.append(contentsOf: coordsB)
         return MKPolyline(coordinates: coordsA, count: coordsA.count)
     }
-
-    private func updateCameraToFit(polyline: MKPolyline) {
-        let rect = polyline.boundingMapRect
-        let region = MKCoordinateRegion(rect)
-        position = .region(region)
-    }
-
     private func currentRouteSummaryText() -> String? {
         if compositePolyline != nil {
             return routeSummaryText(distance: compositeDistance, time: compositeTime)
@@ -693,7 +756,7 @@ private extension MKPolyline {
 }
 
 #Preview {
-    MapView()
+    MapView(selectedCar: .constant(nil))
 }
 
 //User Location
@@ -838,7 +901,6 @@ private struct StationBottomSheetView: View {
                         Image(systemName: "xmark.circle.fill")
                             .imageScale(.large)
                     }
-                    .accessibilityLabel("Schließen")
                 }
             }
         }
@@ -853,3 +915,4 @@ private struct StationBottomSheetView: View {
         }
     }
 }
+
