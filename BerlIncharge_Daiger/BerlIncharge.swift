@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct BerlIncharge_DaigerApp: App {
+struct BerlIncharge: App {
     var body: some Scene {
         WindowGroup {
             InchargeView()
