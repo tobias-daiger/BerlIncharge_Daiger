@@ -3,14 +3,12 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 25.10.25.
-// https://www.youtube.com/watch?v=H9mt8WjpZgM
-// https://www.youtube.com/watch?v=Ve_oGVo6X9U
-// https://www.youtube.com/watch?v=Tz6MZE16dfE
+//
 
 import Foundation
 
 struct Car: Identifiable, Hashable, Decodable {
-    let id: UUID
+    let id: UUID = UUID() 
     let name: String
     let model: String
     let brand: String
@@ -24,59 +22,20 @@ struct Car: Identifiable, Hashable, Decodable {
     let power: String
     let maxSpeed: String
     let accelaration0To100kmh: String
-
+    
     private enum CodingKeys: String, CodingKey {
-        case name, model, brand, imageName, batteryCapacityKWh, stateOfChargePercent, consumptionPer100km, maxRangeKm, remainingRangeKm, batteryTechnology, power, maxSpeed, accelaration0To100kmh
-    }
-
-    init(
-        id: UUID = UUID(),
-        name: String,
-        model: String,
-        brand: String,
-        imageName: String,
-        batteryCapacityKWh: String,
-        stateOfChargePercent: String,
-        consumptionPer100km: String,
-        maxRangeKm: String,
-        remainingRangeKm: String,
-        batteryTechnology: String,
-        power: String,
-        maxSpeed: String,
-        accelaration0To100kmh: String
-        
-    ) {
-        self.id = id
-        self.name = name
-        self.model = model
-        self.brand = brand
-        self.imageName = imageName
-        self.batteryCapacityKWh = batteryCapacityKWh
-        self.stateOfChargePercent = stateOfChargePercent
-        self.consumptionPer100km = consumptionPer100km
-        self.maxRangeKm = maxRangeKm
-        self.remainingRangeKm = remainingRangeKm
-        self.batteryTechnology = batteryTechnology
-        self.power = power
-        self.maxSpeed = maxSpeed
-        self.accelaration0To100kmh = accelaration0To100kmh
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = UUID()
-        self.name = try container.decode(String.self, forKey: .name)
-        self.model = try container.decode(String.self, forKey: .model)
-        self.brand = try container.decode(String.self, forKey: .brand)
-        self.imageName = try container.decode(String.self, forKey: .imageName)
-        self.batteryCapacityKWh = try container.decode(String.self, forKey: .batteryCapacityKWh)
-        self.stateOfChargePercent = try container.decode(String.self, forKey: .stateOfChargePercent)
-        self.consumptionPer100km = try container.decode(String.self, forKey: .consumptionPer100km)
-        self.maxRangeKm = try container.decode(String.self, forKey: .maxRangeKm)
-        self.remainingRangeKm = try container.decode(String.self, forKey: .remainingRangeKm)
-        self.batteryTechnology = try container.decode(String.self, forKey: .batteryTechnology)
-        self.power = try container.decode(String.self, forKey: .power)
-        self.maxSpeed = try container.decode(String.self, forKey: .maxSpeed)
-        self.accelaration0To100kmh = try container.decode(String.self, forKey: .accelaration0To100kmh)
+        case name
+        case model
+        case brand
+        case imageName
+        case batteryCapacityKWh
+        case stateOfChargePercent
+        case consumptionPer100km
+        case maxRangeKm
+        case remainingRangeKm
+        case batteryTechnology
+        case power
+        case maxSpeed
+        case accelaration0To100kmh
     }
 }

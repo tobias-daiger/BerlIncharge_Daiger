@@ -3,7 +3,7 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 24.10.25.
-// https://www.youtube.com/watch?v=IopCl8sOyFA
+// 
 
 import SwiftUI
 
@@ -14,7 +14,6 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Statusbox oben über der Liste
                 Section {
                     StatusBox(
                         selectedCar: selectedCar,
@@ -24,7 +23,6 @@ struct HomeView: View {
                         .listRowBackground(Color.clear)
                 }
 
-                // Fahrzeugliste
                 ForEach(cars) { car in
                     NavigationLink(value: car) {
                         HStack(spacing: 12) {
@@ -48,12 +46,11 @@ struct HomeView: View {
                             Spacer()
 
                             VStack(alignment: .trailing, spacing: 4) {
-                                // Ladezustand berechnet: remainingRangeKm / maxRangeKm
                                 HStack(spacing: 4) {
                                     Image(systemName: "battery.100")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Text(computedSocPercentText(for: car))
+                                    Text(Calc.computedSocPercentText(for: car))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .monospacedDigit()
@@ -85,24 +82,6 @@ struct HomeView: View {
             }
         }
     }
-
-    // MARK: - Helpers
-    private func computedSocPercentText(for car: Car) -> String {
-        func extractNumber(_ s: String) -> Double? {
-            let digits = s
-                .replacingOccurrences(of: ",", with: ".")
-                .filter { ("0"..."9").contains($0) || $0 == "." }
-            return Double(digits)
-        }
-
-        let remaining = extractNumber(car.remainingRangeKm) ?? 0
-        let maxRange = extractNumber(car.maxRangeKm) ?? 0
-        guard maxRange > 0 else { return "0%" }
-
-        let ratio = max(0, min(1, remaining / maxRange))
-        let percent = (ratio * 100).rounded()
-        return String(format: "%.0f%%", percent)
-    }
 }
 
 private struct StatusBox: View {
@@ -110,16 +89,14 @@ private struct StatusBox: View {
     let onClear: () -> Void
 
     var body: some View {
-        // Extracted to simplify type-checking
         let hasSelection = (selectedCar != nil)
         let iconName = hasSelection ? "car.fill" : "car"
-        // Use AnyShapeStyle to avoid overload complexity with ternary
-        let iconStyle: AnyShapeStyle = hasSelection ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary)
+        let iconColor: Color = hasSelection ? .primary : .secondary
 
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: iconName)
                 .imageScale(.large)
-                .foregroundStyle(iconStyle)
+                .foregroundStyle(iconColor)
 
             VStack(alignment: .leading, spacing: 2) {
                 if let car = selectedCar {
@@ -165,39 +142,7 @@ private struct StatusBox: View {
     }
 }
 
-struct CarImagePlaceholder: View {
-    enum ContentMode {
-        case fill
-        case fit
-    }
 
-    let imageName: String
-    var contentMode: ContentMode = .fill
-
-    var body: some View {
-        ZStack {
-            if let uiImage = UIImage(named: imageName) {
-                let image = Image(uiImage: uiImage).resizable()
-                switch contentMode {
-                case .fill:
-                    image.scaledToFill()
-                case .fit:
-                    image.scaledToFit()
-                }
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.gray.opacity(0.15))
-                    Image(systemName: "car.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.gray)
-                }
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipped()
-    }
-}
 
 struct CarDetailView: View {
     let car: Car
@@ -205,14 +150,12 @@ struct CarDetailView: View {
 
     @State private var showSelectionToast = false
 
-    private var gridItems: [GridItem] {
-        [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-    }
+    private var gridItems: [GridItem] { Calc.twoColumnGridItems() }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                CarImagePlaceholder(imageName: car.imageName, contentMode: .fill)
+                CarImagePlaceholder(imageName: car.imageName)
                     .frame(height: 180)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(alignment: .bottomLeading) {
@@ -241,7 +184,7 @@ struct CarDetailView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "battery.100")
                                     .foregroundStyle(.white)
-                                Text(car.stateOfChargePercent)
+                                Text(Calc.computedSocPercentText(for: car))
                                     .font(.subheadline).bold()
                                     .foregroundStyle(.white)
                                     .monospacedDigit()
@@ -285,13 +228,13 @@ struct CarDetailView: View {
                 .controlSize(.regular)
 
                 LazyVGrid(columns: gridItems, spacing: 12) {
-                    StatBox(title: "Leistung", value: car.power, symbol: "engine.combustion")
-                    StatBox(title: "Beschleunigung 0.100", value: car.accelaration0To100kmh, symbol: "engine.combustion")
-                    StatBox(title: "Batteriekapazität", value: car.batteryCapacityKWh, symbol: "battery.100")
-                    StatBox(title: "Max. Reichweite kombiniert bis", value: car.maxRangeKm, symbol: "speedometer")
-                    StatBox(title: "Batterietechnologie", value: car.batteryTechnology, symbol: "minus.plus.batteryblock")
-                    StatBox(title: "Verbrauch / 100 km", value: car.consumptionPer100km, symbol: "speedometer")
-                    StatBox(title: "Höchstgeschwindigkeit", value: car.maxSpeed, symbol: "engine.combustion")
+                    StatBox("Leistung", car.power, "engine.combustion")
+                    StatBox("Beschleunigung 0-100", car.accelaration0To100kmh, "engine.combustion")
+                    StatBox("Batteriekapazität", car.batteryCapacityKWh, "battery.100")
+                    StatBox("Max. Reichweite", car.maxRangeKm, "speedometer")
+                    StatBox("Batterietechnologie", car.batteryTechnology, "minus.plus.batteryblock")
+                    StatBox("Verbrauch / 100 km", car.consumptionPer100km, "speedometer")
+                    StatBox("Höchstgeschwindigkeit", car.maxSpeed, "engine.combustion")
                 }
             }
             .padding(16)
@@ -315,54 +258,3 @@ struct CarDetailView: View {
         }
     }
 }
-
-struct StatBox: View {
-    let title: String
-    let value: String
-    let symbol: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .foregroundStyle(.tint)
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            Text(value)
-                .font(.title3).bold()
-                .foregroundStyle(.primary)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-    }
-}
-
-//https://www.youtube.com/watch?v=pC6qGSSh9bI
-struct ToastView: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.subheadline).bold()
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.black.opacity(0.8))
-            )
-            .shadow(radius: 8)
-    }
-}
-
-#Preview {
-    HomeView(selectedCar: .constant(nil))
-}
-

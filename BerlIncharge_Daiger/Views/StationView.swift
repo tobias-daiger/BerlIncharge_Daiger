@@ -3,8 +3,7 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 24.10.25.
-//searchable
-// https://www.youtube.com/watch?v=iTqwa0DCIMA
+//
 
 import SwiftUI
 
@@ -17,7 +16,7 @@ struct StationView: View {
         guard !query.isEmpty else { return stations }
 
         return stations.filter { station in
-            let haystacks: [String] = [
+            let container: [String] = [
                 station.pointName,
                 station.street,
                 station.houseNumber,
@@ -27,8 +26,8 @@ struct StationView: View {
             ]
             .map { $0.lowercased() }
 
-            let needle = query.lowercased()
-            return haystacks.contains(where: { $0.contains(needle) })
+            let item = query.lowercased()
+            return container.contains(where: { $0.contains(item) })
         }
     }
 
@@ -37,7 +36,6 @@ struct StationView: View {
             List(filteredStations) { station in
                 NavigationLink(value: station) {
                     HStack(spacing: 12) {
-                        // Bild abhängig von pointName (alf/evb) oder powerType (AC/DC)
                         StationImagePlaceholder(pointName: station.pointName,
                                                 powerType: station.powerType)
                             .frame(width: 64, height: 64)
@@ -61,7 +59,7 @@ struct StationView: View {
 
                         VStack(alignment: .trailing, spacing: 4) {
                             HStack(spacing: 4) {
-                                Image(systemName: "bolt.circle")
+                                Image(systemName: "bolt.badge.checkmark")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 Text(station.status)
@@ -71,7 +69,7 @@ struct StationView: View {
                                     .truncationMode(.tail)
                             }
                             HStack(spacing: 4) {
-                                Image(systemName: "bolt.fill")
+                                Image(systemName: "ev.charger.arrowtriangle.right.fill")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 Text(station.powerType)
@@ -91,8 +89,8 @@ struct StationView: View {
                 StationDetailView(station: station)
             }
             .searchable(text: $searchText,
-                        placement: .navigationBarDrawer(displayMode: .automatic),
-                        prompt: "Station, Straße, Status …")
+                        placement: .automatic,
+                        prompt: "Seriennummer...")
             .onAppear {
                 stations = StationLoader.load()
             }
@@ -100,81 +98,16 @@ struct StationView: View {
     }
 }
 
-// Bild-Auswahl:
-// 1) pointName enthält "alf"  -> Asset "alf"
-// 2) pointName enthält "evb"  -> Asset "evb"
-// 3) sonst powerType DC -> "terra"
-// 4) sonst AC -> "keba"
-struct StationImagePlaceholder: View {
-    let pointName: String
-    let powerType: String
-
-    private var normalizedName: String { pointName.lowercased() }
-    private var isDC: Bool { powerType.lowercased().contains("dc") }
-
-    private var assetName: String {
-        if normalizedName.contains("alf") { return "alf" }
-        if normalizedName.contains("evb") { return "evb" }
-        return isDC ? "terra" : "keba"
-    }
-
-    var body: some View {
-        ZStack {
-            // Dezenter Hintergrund, damit bei "Fit" keine harten Kanten auffallen
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-
-            if let uiImage = UIImage(named: assetName) {
-                let image = Image(uiImage: uiImage).resizable()
-                if isDC {
-                    // DC -> terra standardmäßig Fit ohne Beschnitt
-                    image
-                        .scaledToFit()
-                        .padding(4)
-                } else {
-                    // AC/alf/evb in der Liste dürfen ruhig füllen
-                    image
-                        .scaledToFill()
-                }
-            } else {
-                // Fallback falls Asset fehlt
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.gray.opacity(0.15))
-                    Image(systemName: "photo")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.gray)
-                }
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipped()
-    }
-}
-
-// Detailansicht
 struct StationDetailView: View {
     let station: Station
 
-    private var gridItems: [GridItem] {
-        [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-    }
-
-    private var isDC: Bool {
-        station.powerType.lowercased().contains("dc")
-    }
-
-    private var assetName: String {
-        let name = station.pointName.lowercased()
-        if name.contains("alf") { return "alf" }
-        if name.contains("evb") { return "evb" }
-        return isDC ? "terra" : "keba"
-    }
+    private var gridItems: [GridItem] { Calc.twoColumnGridItems() }
+    private var isDC: Bool { Calc.isDC(powerType: station.powerType) }
+    private var assetName: String { Calc.assetName(pointName: station.pointName, powerType: station.powerType) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Header mit Bild (inkl. alf/evb)
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color(.secondarySystemBackground))
@@ -186,22 +119,16 @@ struct StationDetailView: View {
                                 .scaledToFit()
                                 .padding(6)
                         } else {
-                            // AC/alf/evb: komplett sichtbar, etwas Luft zum Rand
                             image
                                 .scaledToFit()
                                 .padding(.top, 8)
                                 .padding(.horizontal, 6)
                                 .padding(.bottom, 6)
                         }
-                    } else {
-                        Image(systemName: "photo")
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(.gray)
                     }
                 }
                 .frame(height: 200)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                // Linkes Overlay: Name und Adresse kleiner
                 .overlay(alignment: .bottomLeading) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(station.pointName)
@@ -223,7 +150,6 @@ struct StationDetailView: View {
                     )
                     .padding(8)
                 }
-                // Oben links: Leistung/Zugang kompakt in größerer Bubble
                 .overlay(alignment: .topLeading) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
@@ -244,23 +170,22 @@ struct StationDetailView: View {
                                 .foregroundStyle(.white.opacity(0.98))
                         }
                     }
-                    .padding(.horizontal, 12)   // breiter
-                    .padding(.vertical, 10)     // höher
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(Color.black.opacity(0.55)) // etwas kräftiger, größer wirkt ruhiger
+                            .fill(Color.black.opacity(0.55))
                     )
-                    .padding(12) // mehr Abstand vom Rand
+                    .padding(12)
                 }
 
-                // 2x2 Grid mit Kästchen wie bei HomeView
                 LazyVGrid(columns: gridItems, spacing: 12) {
-                    StatBox(title: "Status", value: station.status, symbol: "bolt.circle")
-                    StatBox(title: "Leistung beworben", value: station.advertisedPower, symbol: "bolt.fill")
-                    StatBox(title: "Stromart", value: station.powerType, symbol: "powerplug.fill")
-                    StatBox(title: "Zugang", value: station.publicAccess ? "Öffentlich" : "Nicht öffentlich", symbol: "lock.open")
-                    StatBox(title: "Breitengrad", value: String(format: "%.6f", station.latitude), symbol: "mappin.and.ellipse")
-                    StatBox(title: "Längengrad", value: String(format: "%.6f", station.longitude), symbol: "mappin.and.ellipse")
+                    StatBox("Status", station.status, "bolt.circle")
+                    StatBox("Leistung beworben", station.advertisedPower, "bolt.fill")
+                    StatBox("Stromart", station.powerType, "powerplug.fill")
+                    StatBox("Zugang", station.publicAccess ? "Öffentlich" : "Nicht öffentlich", "lock.open")
+                    StatBox("Breitengrad", String(format: "%.6f", station.latitude), "mappin.and.ellipse")
+                    StatBox("Längengrad", String(format: "%.6f", station.longitude), "mappin.and.ellipse")
                 }
             }
             .padding(16)
@@ -268,8 +193,4 @@ struct StationDetailView: View {
         .navigationTitle(station.pointName)
         .navigationBarTitleDisplayMode(.inline)
     }
-}
-
-#Preview {
-    StationView()
 }

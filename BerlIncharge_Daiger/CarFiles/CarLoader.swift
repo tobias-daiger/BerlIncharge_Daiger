@@ -10,7 +10,6 @@ import Foundation
 enum CarLoader {
     static func load() -> [Car] {
         guard let url = Bundle.main.url(forResource: "cars", withExtension: "json") else {
-            print("cars.json not found")
             return []
         }
         do {
@@ -18,7 +17,6 @@ enum CarLoader {
             let cars = try JSONDecoder().decode([Car].self, from: data)
             return cars
         } catch {
-            print("Error decoding. \(error)")
             return []
         }
     }

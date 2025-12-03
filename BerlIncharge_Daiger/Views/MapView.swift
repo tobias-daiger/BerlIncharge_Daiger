@@ -3,7 +3,7 @@
 //  BerlIncharge_Daiger
 //
 //  Created by Tobi on 24.10.25.
-// https://www.youtube.com/watch?v=98rQZbwxMFI&t=460s
+//
 
 import SwiftUI
 import MapKit
@@ -34,6 +34,8 @@ struct MapView: View {
     @State private var searchResultItem: MKMapItem?
     @State private var isSearching: Bool = false
     @State private var searchErrorMessage: String?
+    @State private var showNavToast: Bool = false
+    @State private var navToastText: String = ""
     
     var body: some View {
         NavigationView {
@@ -117,7 +119,6 @@ struct MapView: View {
                                                 .fill(Color.black.opacity(0.7))
                                         )
 
-                                    // Zusatz: Fahrzeuggestützte, berechnete Werte unter der Route
                                     if let computed = computedCarStats() {
                                         VStack(alignment: .trailing, spacing: 4) {
                                             HStack(spacing: 6) {
@@ -221,7 +222,6 @@ struct MapView: View {
                 if let item = searchResultItem {
                     VStack {
                         HStack(alignment: .center, spacing: 10) {
-                            // Titel + Adresse
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.name ?? "Ziel")
                                     .font(.subheadline).bold()
@@ -310,11 +310,24 @@ struct MapView: View {
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
+
+                VStack {
+                    if showNavToast {
+                        ToastView(text: navToastText)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .padding(.top, 12)
+                    }
+                    Spacer()
+                }
             }
             .onAppear {
                 viewModel.start()
                 stations = StationLoader.load()
-                loadBerlinGeoJSON()
+                Task {
+                    let result = GeoLoader.loadBerlinGeoJSON()
+                    berlinPolylines = result.polylines
+                    berlinPolygons = result.polygons
+                }
             }
             .navigationTitle("Map View")
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Adresse suchen")
@@ -323,11 +336,6 @@ struct MapView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Group {
-                        if isSearching {
-                            ProgressView()
-                        }
-                    }
                 }
             }
             .sheet(item: $selectedStation) { station in
@@ -347,6 +355,7 @@ struct MapView: View {
             }, message: {
                 Text(searchErrorMessage ?? "")
             })
+            .animation(.spring(duration: 0.35), value: showNavToast)
         }
     }
 
@@ -354,7 +363,14 @@ struct MapView: View {
         activeRoutePolyline != nil || compositePolyline != nil
     }
 
-    // MARK: - Berechnung der angezeigten Fahrzeugwerte
+    private func showTransientToast(_ text: String) {
+        navToastText = text
+        showNavToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showNavToast = false
+        }
+    }
+
     private struct ComputedStats {
         let socText: String
         let rangeText: String
@@ -364,7 +380,6 @@ struct MapView: View {
     private func computedCarStats() -> ComputedStats? {
         guard let car = selectedCar else { return nil }
 
-        // Distanz der aktiven Route in km (Composite hat Vorrang)
         let routeKm: Double? = {
             if compositePolyline != nil {
                 return compositeDistance / 1000.0
@@ -377,7 +392,6 @@ struct MapView: View {
 
         guard let tripKm = routeKm else { return nil }
 
-        // Helper zum Parsen von Zahlen aus Strings wie "708", "708 km", "100%", "100 %"
         func extractNumber(_ s: String) -> Double? {
             let digits = s
                 .replacingOccurrences(of: ",", with: ".")
@@ -388,58 +402,16 @@ struct MapView: View {
         let startingRangeKm = extractNumber(car.remainingRangeKm) ?? 0
         let maxRangeKm = extractNumber(car.maxRangeKm) ?? 0
 
-        // Neue Restreichweite nach Trip
         let adjustedRangeKm = max(0, startingRangeKm - tripKm)
 
-        // Ladezustand in Prozent relativ zur Max-Range
         let socRatio = maxRangeKm > 0 ? adjustedRangeKm / maxRangeKm : 0
         let socPercent = max(0, min(1, socRatio)) * 100.0
 
-        // Anzeige-Strings (gekappt bei 0)
         let rangeText = String(format: "%.0f km", adjustedRangeKm.rounded())
         let socText = String(format: "%.0f%%", socPercent.rounded())
 
         let isCritical = socPercent <= 0.0
         return ComputedStats(socText: socText, rangeText: rangeText, isCritical: isCritical)
-    }
-
-//geoJSON
-//https://www.youtube.com/watch?v=B0YnIOER8MI&t=250s
-    private func loadBerlinGeoJSON() {
-        guard let url = Bundle.main.url(forResource: "berlingeo", withExtension: "geojson") else {
-            print("berlingeo.geojson nicht im Bundle gefunden.")
-            return
-        }
-        do {
-            let data = try Data(contentsOf: url)
-            let decoder = MKGeoJSONDecoder()
-            let features = try decoder.decode(data)
-
-            var polylines: [MKPolyline] = []
-            var polygons: [MKPolygon] = []
-
-            for feature in features {
-                if let mkFeature = feature as? MKGeoJSONFeature {
-                    for geom in mkFeature.geometry {
-                        switch geom {
-                        case let polyline as MKPolyline:
-                            polylines.append(polyline)
-                        case let polygon as MKPolygon:
-                            polygons.append(polygon)
-                        default:
-                            break
-                        }
-                    }
-                }
-            }
-            
-            DispatchQueue.main.async {
-                self.berlinPolylines = polylines
-                self.berlinPolygons = polygons
-            }
-        } catch {
-            print("Fehler beim Laden/Decodieren von berlingeo.geojson: \(error)")
-        }
     }
 
     @MainActor
@@ -493,7 +465,7 @@ struct MapView: View {
         }
 
         compositePolyline = nil
-               compositeDistance = 0
+        compositeDistance = 0
         compositeTime = 0
 
         let sourcePlacemark = MKPlacemark(coordinate: userLocation)
@@ -513,6 +485,8 @@ struct MapView: View {
                 activeRoutePolyline = route.polyline
                 selectedStation = nil
                 searchResultItem = nil
+
+                showTransientToast("Navigiere zu \(station.pointName)")
             }
         } catch {
             print("Routenberechnung fehlgeschlagen: \(error)")
@@ -544,6 +518,9 @@ struct MapView: View {
                 activeRoute = route
                 activeRoutePolyline = route.polyline
                 searchResultItem = nil
+
+                let name = item.name ?? "Ziel"
+                showTransientToast("Navigiere zu \(name)")
             }
         } catch {
             print("Routenberechnung fehlgeschlagen: \(error)")
@@ -613,6 +590,9 @@ struct MapView: View {
         compositeDistance = route1.distance + route2.distance
         compositeTime = route1.expectedTravelTime + route2.expectedTravelTime
         searchResultItem = nil
+
+        let name = item.name ?? "Ziel"
+        showTransientToast("Navigiere via \(requireDC ? "DC" : "AC") zu \(name)")
     }
     
     private func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
@@ -770,7 +750,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
 
     func start() {
         guard CLLocationManager.locationServicesEnabled() else {
-            print("Location Services are disabled.")
             return
         }
 
@@ -805,10 +784,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         if let loc = locations.last {
             lastKnownLocation = loc
         }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Location error: \(error)")
     }
 }
 
@@ -861,34 +836,15 @@ private struct StationBottomSheetView: View {
                         .controlSize(.regular)
 
                         LazyVGrid(columns: gridItems, spacing: 12) {
-                            StatBox(title: "Status", value: station.status, symbol: "bolt.circle")
-                            StatBox(title: "Leistung beworben", value: station.advertisedPower, symbol: "bolt.fill")
-                            StatBox(title: "Stromart", value: station.powerType, symbol: "powerplug.fill")
-                            StatBox(title: "Zugang", value: station.publicAccess ? "Öffentlich" : "Nicht öffentlich", symbol: "lock.open")
-                            StatBox(title: "Breitengrad", value: String(format: "%.6f", station.latitude), symbol: "mappin.and.ellipse")
-                            StatBox(title: "Längengrad", value: String(format: "%.6f", station.longitude), symbol: "mappin.and.ellipse")
+                            StatBox("Status", station.status, "bolt.circle")
+                            StatBox("Leistung beworben", station.advertisedPower, "bolt.fill")
+                            StatBox("Stromart", station.powerType, "powerplug.fill")
+                            StatBox("Zugang", station.publicAccess ? "Öffentlich" : "Nicht öffentlich", "lock.open")
+                            StatBox("Breitengrad", String(format: "%.6f", station.latitude), "mappin.and.ellipse")
+                            StatBox("Längengrad", String(format: "%.6f", station.longitude), "mappin.and.ellipse")
                         }
                     }
                     .padding(16)
-                }
-
-                if showToast {
-                    VStack {
-                        Text("Navigiere zu \(station.pointName)")
-                            .font(.subheadline).bold()
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color.black.opacity(0.85))
-                            )
-                            .shadow(radius: 8)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                            .padding(.top, 12)
-                        Spacer()
-                    }
-                    .animation(.spring(duration: 0.35), value: showToast)
                 }
             }
             .navigationTitle("Station")
