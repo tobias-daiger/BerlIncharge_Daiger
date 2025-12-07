@@ -30,16 +30,17 @@ struct Calc {
         ]
     }
     
+    // Neu: generischer Number-Extractor für Werte in Strings (mit Komma-/Punkt-Unterstützung)
+    static func extractNumber(from s: String) -> Double? {
+        let digits = s
+            .replacingOccurrences(of: ",", with: ".")
+            .filter { ("0"..."9").contains($0) || $0 == "." }
+        return Double(digits)
+    }
+    
     static func computedSocPercentText(for car: Car) -> String {
-        func extractNumber(_ s: String) -> Double? {
-            let digits = s
-                .replacingOccurrences(of: ",", with: ".")
-                .filter { ("0"..."9").contains($0) || $0 == "." }
-            return Double(digits)
-        }
-
-        let remaining = extractNumber(car.remainingRangeKm) ?? 0
-        let maxRange = extractNumber(car.maxRangeKm) ?? 0
+        let remaining = extractNumber(from: car.remainingRangeKm) ?? 0
+        let maxRange = extractNumber(from: car.maxRangeKm) ?? 0
         guard maxRange > 0 else { return "0%" }
 
         let ratio = max(0, min(1, remaining / maxRange))

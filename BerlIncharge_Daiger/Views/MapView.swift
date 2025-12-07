@@ -63,9 +63,7 @@ struct MapView: View {
 
                     ForEach(stations) { station in
                         let coordinate = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
-
-                        let isDC = station.powerType.lowercased().contains("dc")
-
+                        let isDC = Calc.isDC(powerType: station.powerType)
                         let symbolName = "ev.charger"
                         let color = isDC ? Color("brandSecondary") : Color("brandPrimary")
 
@@ -103,122 +101,6 @@ struct MapView: View {
                 }
                 .ignoresSafeArea()
 
-                if hasAnyActiveRoute {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            if let summary = currentRouteSummaryText() {
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    Text(summary)
-                                        .font(.footnote).bold()
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(
-                                            Capsule(style: .continuous)
-                                                .fill(Color.black.opacity(0.7))
-                                        )
-
-                                    if let computed = computedCarStats() {
-                                        VStack(alignment: .trailing, spacing: 4) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "battery.100")
-                                                Text(computed.socText)
-                                            }
-                                            .font(.footnote).bold()
-                                            .foregroundStyle(computed.isCritical ? Color.red : Color.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule(style: .continuous)
-                                                    .fill(Color.black.opacity(0.7))
-                                            )
-
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "road.lanes")
-                                                Text(computed.rangeText)
-                                            }
-                                            .font(.footnote).bold()
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule(style: .continuous)
-                                                    .fill(Color.black.opacity(0.7))
-                                            )
-                                        }
-                                        .transition(.opacity)
-                                    } else {
-                                        VStack(alignment: .trailing, spacing: 4) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "battery.100")
-                                                Text("0%")
-                                            }
-                                            .font(.footnote).bold()
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule(style: .continuous)
-                                                    .fill(Color.black.opacity(0.7))
-                                            )
-
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "road.lanes")
-                                                Text("0 km")
-                                            }
-                                            .font(.footnote).bold()
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule(style: .continuous)
-                                                    .fill(Color.black.opacity(0.7))
-                                            )
-                                        }
-                                        .transition(.opacity)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.top, 12)
-                        .padding(.horizontal, 12)
-
-                        Spacer()
-                    }
-                    .transition(.opacity)
-                }
-
-                if hasAnyActiveRoute {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Button {
-                                clearRoute()
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .imageScale(.large)
-                                    Text("Route entfernen")
-                                        .font(.subheadline).bold()
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .foregroundStyle(.white)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.black.opacity(0.75))
-                                )
-                            }
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 16)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
                 if let item = searchResultItem {
                     VStack {
                         HStack(alignment: .center, spacing: 10) {
@@ -228,13 +110,6 @@ struct MapView: View {
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
-                                if let subtitle = formattedSubtitle(for: item) {
-                                    Text(subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                }
                             }
 
                             Spacer(minLength: 12)
@@ -311,6 +186,120 @@ struct MapView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
+                if searchResultItem != nil {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Button {
+                                withAnimation(.spring(duration: 0.3)) {
+                                    searchResultItem = nil
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(10)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.black.opacity(0.75))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 16)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                
+                if hasAnyActiveRoute {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            if let summary = currentRouteSummaryText() {
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text(summary)
+                                        .font(.footnote).bold()
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(Color.black.opacity(0.7))
+                                        )
+
+                                    if let computed = computedCarStats() {
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "battery.100")
+                                                Text(computed.socText)
+                                            }
+                                            .font(.footnote).bold()
+                                            .foregroundStyle(computed.isCritical ? Color.red : Color.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule(style: .continuous)
+                                                    .fill(Color.black.opacity(0.7))
+                                            )
+
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "road.lanes")
+                                                Text(computed.rangeText)
+                                            }
+                                            .font(.footnote).bold()
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule(style: .continuous)
+                                                    .fill(Color.black.opacity(0.7))
+                                            )
+                                        }
+                                        .transition(.opacity)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 12)
+                        .padding(.horizontal, 12)
+
+                        Spacer()
+                    }
+                    .transition(.opacity)
+                }
+
+                if hasAnyActiveRoute {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Button {
+                                clearRoute()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .imageScale(.large)
+                                    Text("Route entfernen")
+                                        .font(.subheadline).bold()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .foregroundStyle(.white)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.black.opacity(0.75))
+                                )
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 16)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                
                 VStack {
                     if showNavToast {
                         ToastView(text: navToastText)
@@ -339,7 +328,7 @@ struct MapView: View {
                 }
             }
             .sheet(item: $selectedStation) { station in
-                StationBottomSheetView(
+                MapDetailView(
                     station: station,
                     onClose: { selectedStation = nil },
                     onNavigate: { target in
@@ -380,37 +369,22 @@ struct MapView: View {
     private func computedCarStats() -> ComputedStats? {
         guard let car = selectedCar else { return nil }
 
-        let routeKm: Double? = {
-            if compositePolyline != nil {
-                return compositeDistance / 1000.0
-            } else if let route = activeRoute {
-                return route.distance / 1000.0
-            } else {
-                return nil
-            }
-        }()
+        let tripKm: Double? = compositePolyline != nil
+            ? compositeDistance / 1000
+            : activeRoute.map { $0.distance / 1000 }
 
-        guard let tripKm = routeKm else { return nil }
+        guard let tripKm else { return nil }
 
-        func extractNumber(_ s: String) -> Double? {
-            let digits = s
-                .replacingOccurrences(of: ",", with: ".")
-                .filter { ("0"..."9").contains($0) || $0 == "." }
-            return Double(digits)
-        }
+        let startKm = Calc.extractNumber(from: car.remainingRangeKm) ?? 0
+        let maxKm = Calc.extractNumber(from: car.maxRangeKm) ?? 0
 
-        let startingRangeKm = extractNumber(car.remainingRangeKm) ?? 0
-        let maxRangeKm = extractNumber(car.maxRangeKm) ?? 0
+        let adjustedKm = max(0, startKm - tripKm)
+        let socPercent = maxKm > 0 ? max(0, min(1, adjustedKm / maxKm)) * 100 : 0
 
-        let adjustedRangeKm = max(0, startingRangeKm - tripKm)
-
-        let socRatio = maxRangeKm > 0 ? adjustedRangeKm / maxRangeKm : 0
-        let socPercent = max(0, min(1, socRatio)) * 100.0
-
-        let rangeText = String(format: "%.0f km", adjustedRangeKm.rounded())
+        let rangeText = String(format: "%.0f km", adjustedKm.rounded())
         let socText = String(format: "%.0f%%", socPercent.rounded())
+        let isCritical = socPercent <= 0
 
-        let isCritical = socPercent <= 0.0
         return ComputedStats(socText: socText, rangeText: rangeText, isCritical: isCritical)
     }
 
@@ -444,21 +418,25 @@ struct MapView: View {
         }
     }
 
-    private func formattedSubtitle(for item: MKMapItem) -> String? {
-        let p = item.placemark
-        let parts = [
-            p.thoroughfare,
-            p.subThoroughfare,
-            p.postalCode,
-            p.locality
-        ].compactMap { $0 }.filter { !$0.isEmpty }
+    
+    private func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
+        let req = MKDirections.Request()
+        req.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
+        req.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
+        req.transportType = .automobile
+        req.requestsAlternateRoutes = false
 
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: " ")
+        do {
+            let response = try await MKDirections(request: req).calculate()
+            return response.routes.first
+        } catch {
+            print("Teilroute fehlgeschlagen: \(error)")
+            return nil
+        }
     }
     
     @MainActor
-    private func requestRoute(to station: Station) async {
+    private func requestRoute(to coordinate: CLLocationCoordinate2D, displayName: String?) async {
         guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
             print("Keine Nutzerposition verfügbar.")
             return
@@ -468,64 +446,38 @@ struct MapView: View {
         compositeDistance = 0
         compositeTime = 0
 
-        let sourcePlacemark = MKPlacemark(coordinate: userLocation)
-        let destPlacemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude))
-
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: sourcePlacemark)
-        request.destination = MKMapItem(placemark: destPlacemark)
-        request.transportType = .automobile
-        request.requestsAlternateRoutes = false
-
-        let directions = MKDirections(request: request)
-        do {
-            let response = try await directions.calculate()
-            if let route = response.routes.first {
+        guard let route = await calculateRoute(from: userLocation, to: coordinate) else {
+            print("Berechnung fehlgeschlagen: calculateRoute lieferte nil")
+            searchErrorMessage = "Route konnte nicht berechnet werden."
+            return
+        }
                 activeRoute = route
                 activeRoutePolyline = route.polyline
-                selectedStation = nil
-                searchResultItem = nil
 
-                showTransientToast("Navigiere zu \(station.pointName)")
-            }
-        } catch {
-            print("Routenberechnung fehlgeschlagen: \(error)")
-        }
+                let name = displayName ?? "Ziel"
+                showTransientToast("Navigiere zu \(name)")
+        
+    }
+
+    @MainActor
+    private func requestRoute(to station: Station) async {
+        selectedStation = nil
+        searchResultItem = nil
+        let coord = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
+        await requestRoute(to: coord, displayName: station.pointName)
     }
 
     @MainActor
     private func requestRoute(to item: MKMapItem) async {
-        guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
-            print("Keine Nutzerposition verfügbar.")
-            return
-        }
-
-        compositePolyline = nil
-        compositeDistance = 0
-        compositeTime = 0
-
-        let sourcePlacemark = MKPlacemark(coordinate: userLocation)
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: sourcePlacemark)
-        request.destination = item
-        request.transportType = .automobile
-        request.requestsAlternateRoutes = false
-
-        let directions = MKDirections(request: request)
-        do {
-            let response = try await directions.calculate()
-            if let route = response.routes.first {
-                activeRoute = route
-                activeRoutePolyline = route.polyline
-                searchResultItem = nil
-
-                let name = item.name ?? "Ziel"
-                showTransientToast("Navigiere zu \(name)")
-            }
-        } catch {
-            print("Routenberechnung fehlgeschlagen: \(error)")
-        }
+        selectedStation = nil
+        searchResultItem = nil
+        await requestRoute(to: item.placemark.coordinate, displayName: item.name)
     }
+    
+    
+    
+    
+    
     
     @MainActor
     private func buildCompositeRouteOptimized(to item: MKMapItem, requireDC: Bool) async {
@@ -552,6 +504,7 @@ struct MapView: View {
 
         guard !filtered.isEmpty else {
             searchErrorMessage = "Keine passende \(requireDC ? "DC" : "AC")-Station entlang der Route gefunden."
+            searchResultItem = nil
             return
         }
 
@@ -594,94 +547,81 @@ struct MapView: View {
         let name = item.name ?? "Ziel"
         showTransientToast("Navigiere via \(requireDC ? "DC" : "AC") zu \(name)")
     }
-    
-    private func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
-        let req = MKDirections.Request()
-        req.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
-        req.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
-        req.transportType = .automobile
-        req.requestsAlternateRoutes = false
-
-        do {
-            let response = try await MKDirections(request: req).calculate()
-            return response.routes.first
-        } catch {
-            print("Teilroute fehlgeschlagen: \(error)")
-            return nil
-        }
-    }
 
     private func filterCandidatesAlongCorridor(stations: [Station],
-                                               requireDC: Bool,
-                                               polyline: MKPolyline,
-                                               corridorMeters: CLLocationDistance) -> [Station] {
-        stations.filter { s in
-            let isDC = s.powerType.lowercased().contains("dc")
-            if requireDC != isDC { return false }
-            let p = CLLocationCoordinate2D(latitude: s.latitude, longitude: s.longitude)
-            let d = distance(point: p, toPolyline: polyline)
-            return d <= corridorMeters
-        }
-        .sorted { a, b in
-            let pa = CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude)
-            let pb = CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
-            return distance(point: pa, toPolyline: polyline) < distance(point: pb, toPolyline: polyline)
-        }
-    }
-
-    private func distance(point: CLLocationCoordinate2D, toPolyline polyline: MKPolyline) -> CLLocationDistance {
-        let coords = polyline.coordinates
-        guard coords.count > 1 else { return .greatestFiniteMagnitude }
-
-        var minDist = CLLocationDistance.greatestFiniteMagnitude
-
-        for i in 0..<(coords.count - 1) {
-            let a = coords[i]
-            let b = coords[i + 1]
-            let d = distanceFromPoint(point, toSegmentFrom: a, to: b)
-            if d < minDist { minDist = d }
-        }
-        return minDist
-    }
-
-    private func distanceFromPoint(_ p: CLLocationCoordinate2D,
-                                   toSegmentFrom a: CLLocationCoordinate2D,
-                                   to b: CLLocationCoordinate2D) -> CLLocationDistance {
-
-        let pMP = MKMapPoint(p)
-        let aMP = MKMapPoint(a)
-        let bMP = MKMapPoint(b)
-
-        let apx = pMP.x - aMP.x
-        let apy = pMP.y - aMP.y
-        let abx = bMP.x - aMP.x
-        let aby = bMP.y - aMP.y
-        let ab2 = abx * abx + aby * aby
-
-        if ab2 == 0 {
-
-            return pMP.distance(to: aMP)
+                                                   requireDC: Bool,
+                                                   polyline: MKPolyline,
+                                                   corridorMeters: CLLocationDistance) -> [Station] {
+            stations.filter { s in
+                let isDC = s.powerType.lowercased().contains("dc")
+                if requireDC != isDC { return false }
+                let p = CLLocationCoordinate2D(latitude: s.latitude, longitude: s.longitude)
+                let d = distance(point: p, toPolyline: polyline)
+                return d <= corridorMeters
+            }
+            .sorted { a, b in
+                let pa = CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude)
+                let pb = CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
+                return distance(point: pa, toPolyline: polyline) < distance(point: pb, toPolyline: polyline)
+            }
         }
 
-        let t = max(0, min(1, (apx * abx + apy * aby) / ab2))
-        let proj = MKMapPoint(x: aMP.x + t * abx, y: aMP.y + t * aby)
-        return pMP.distance(to: proj)
-    }
+        private func distance(point: CLLocationCoordinate2D, toPolyline polyline: MKPolyline) -> CLLocationDistance {
+            let coords = polyline.coordinates
+            guard coords.count > 1 else { return .greatestFiniteMagnitude }
 
+            var minDist = CLLocationDistance.greatestFiniteMagnitude
+
+            for i in 0..<(coords.count - 1) {
+                let a = coords[i]
+                let b = coords[i + 1]
+                let d = distanceFromPoint(point, toSegmentFrom: a, to: b)
+                if d < minDist { minDist = d }
+            }
+            return minDist
+        }
+
+        private func distanceFromPoint(_ p: CLLocationCoordinate2D,
+                                       toSegmentFrom a: CLLocationCoordinate2D,
+                                       to b: CLLocationCoordinate2D) -> CLLocationDistance {
+
+            let pMP = MKMapPoint(p)
+            let aMP = MKMapPoint(a)
+            let bMP = MKMapPoint(b)
+
+            let apx = pMP.x - aMP.x
+            let apy = pMP.y - aMP.y
+            let abx = bMP.x - aMP.x
+            let aby = bMP.y - aMP.y
+            let ab2 = abx * abx + aby * aby
+
+            if ab2 == 0 {
+
+                return pMP.distance(to: aMP)
+            }
+
+            let t = max(0, min(1, (apx * abx + apy * aby) / ab2))
+            let proj = MKMapPoint(x: aMP.x + t * abx, y: aMP.y + t * aby)
+            return pMP.distance(to: proj)
+        }
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     private func combine(routeA: MKRoute, routeB: MKRoute) -> MKPolyline {
         var coordsA = routeA.polyline.coordinates
         let coordsB = routeB.polyline.coordinates
         coordsA.append(contentsOf: coordsB)
         return MKPolyline(coordinates: coordsA, count: coordsA.count)
     }
-    private func currentRouteSummaryText() -> String? {
-        if compositePolyline != nil {
-            return routeSummaryText(distance: compositeDistance, time: compositeTime)
-        } else {
-            return routeSummaryText()
-        }
-    }
-
+    
     private func clearRoute() {
         activeRoute = nil
         activeRoutePolyline = nil
@@ -690,38 +630,24 @@ struct MapView: View {
         compositeTime = 0
         searchResultItem = nil
     }
-
-    private func routeSummaryText() -> String? {
-        guard let route = activeRoute else { return nil }
-        let km = route.distance / 1000.0
-        let distanceText = String(format: "%.1f km", km)
-
-        let totalSeconds = Int(route.expectedTravelTime)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let timeText: String
-        if hours > 0 {
-            timeText = String(format: "%d:%02d h", hours, minutes)
-        } else {
-            timeText = String(format: "%d min", minutes)
+    
+    private func currentRouteSummaryText() -> String? {
+        if compositePolyline != nil {
+            return formatSummary(distance: compositeDistance, time: compositeTime)
         }
-
-        return "\(timeText) • \(distanceText)"
+        return activeRoute.map { formatSummary(distance: $0.distance, time: $0.expectedTravelTime) }
     }
 
-    private func routeSummaryText(distance: CLLocationDistance, time: TimeInterval) -> String {
+    private func formatSummary(distance: CLLocationDistance, time: TimeInterval) -> String {
         let km = distance / 1000.0
         let distanceText = String(format: "%.1f km", km)
 
         let totalSeconds = Int(time)
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
-        let timeText: String
-        if hours > 0 {
-            timeText = String(format: "%d:%02d h", hours, minutes)
-        } else {
-            timeText = String(format: "%d min", minutes)
-        }
+        let timeText = hours > 0
+            ? String(format: "%d:%02d h", hours, minutes)
+            : String(format: "%d min", minutes)
 
         return "\(timeText) • \(distanceText)"
     }
@@ -735,13 +661,6 @@ private extension MKPolyline {
     }
 }
 
-#Preview {
-    MapView(selectedCar: .constant(nil))
-}
-
-//User Location
-//https://www.youtube.com/watch?v=hWMkimzIQoU
-//https://www.youtube.com/watch?v=98rQZbwxMFI&t=460s
 @MainActor
 final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
@@ -787,7 +706,7 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
     }
 }
 
-private struct StationBottomSheetView: View {
+private struct MapDetailView: View {
     let station: Station
     let onClose: () -> Void
     let onNavigate: (Station) -> Void

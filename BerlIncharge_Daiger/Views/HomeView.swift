@@ -73,7 +73,7 @@ struct HomeView: View {
             }
             .navigationTitle("Home")
             .navigationDestination(for: Car.self) { car in
-                CarDetailView(car: car) { picked in
+                HomeDetailView(car: car) { picked in
                     selectedCar = picked
                 }
             }
@@ -144,7 +144,7 @@ private struct StatusBox: View {
 
 
 
-struct CarDetailView: View {
+struct HomeDetailView: View {
     let car: Car
     var onSelect: ((Car) -> Void)?
 
