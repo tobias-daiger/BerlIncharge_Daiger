@@ -213,11 +213,11 @@ struct MapView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 
-                if hasAnyActiveRoute {
+                if hasActiveRoute {
                     VStack {
                         HStack {
                             Spacer()
-                            if let summary = currentRouteSummaryText() {
+                            if let summary = displayRouteInfo() {
                                 VStack(alignment: .trailing, spacing: 4) {
                                     Text(summary)
                                         .font(.footnote).bold()
@@ -229,7 +229,7 @@ struct MapView: View {
                                                 .fill(Color.black.opacity(0.7))
                                         )
 
-                                    if let computed = computedCarStats() {
+                                    if let computed = displayCarRouteInfo() {
                                         VStack(alignment: .trailing, spacing: 4) {
                                             HStack(spacing: 6) {
                                                 Image(systemName: "battery.100")
@@ -270,7 +270,7 @@ struct MapView: View {
                     .transition(.opacity)
                 }
 
-                if hasAnyActiveRoute {
+                if hasActiveRoute {
                     VStack {
                         Spacer()
                         HStack {
@@ -346,46 +346,6 @@ struct MapView: View {
             })
             .animation(.spring(duration: 0.35), value: showNavToast)
         }
-    }
-
-    private var hasAnyActiveRoute: Bool {
-        activeRoutePolyline != nil || compositePolyline != nil
-    }
-
-    private func showTransientToast(_ text: String) {
-        navToastText = text
-        showNavToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            showNavToast = false
-        }
-    }
-
-    private struct ComputedStats {
-        let socText: String
-        let rangeText: String
-        let isCritical: Bool
-    }
-
-    private func computedCarStats() -> ComputedStats? {
-        guard let car = selectedCar else { return nil }
-
-        let tripKm: Double? = compositePolyline != nil
-            ? compositeDistance / 1000
-            : activeRoute.map { $0.distance / 1000 }
-
-        guard let tripKm else { return nil }
-
-        let startKm = Calc.extractNumber(from: car.remainingRangeKm) ?? 0
-        let maxKm = Calc.extractNumber(from: car.maxRangeKm) ?? 0
-
-        let adjustedKm = max(0, startKm - tripKm)
-        let socPercent = maxKm > 0 ? max(0, min(1, adjustedKm / maxKm)) * 100 : 0
-
-        let rangeText = String(format: "%.0f km", adjustedKm.rounded())
-        let socText = String(format: "%.0f%%", socPercent.rounded())
-        let isCritical = socPercent <= 0
-
-        return ComputedStats(socText: socText, rangeText: rangeText, isCritical: isCritical)
     }
 
     @MainActor
@@ -534,12 +494,12 @@ struct MapView: View {
             return
         }
 
-        let merged = combine(routeA: route1, routeB: route2)
+        let mergedRoute = mergeRoute(routeA: route1, routeB: route2)
 
         activeRoute = nil
         activeRoutePolyline = nil
 
-        compositePolyline = merged
+        compositePolyline = mergedRoute
         compositeDistance = route1.distance + route2.distance
         compositeTime = route1.expectedTravelTime + route2.expectedTravelTime
         searchResultItem = nil
@@ -615,7 +575,7 @@ struct MapView: View {
     
     
     
-    private func combine(routeA: MKRoute, routeB: MKRoute) -> MKPolyline {
+    private func mergeRoute(routeA: MKRoute, routeB: MKRoute) -> MKPolyline {
         var coordsA = routeA.polyline.coordinates
         let coordsB = routeB.polyline.coordinates
         coordsA.append(contentsOf: coordsB)
@@ -631,14 +591,14 @@ struct MapView: View {
         searchResultItem = nil
     }
     
-    private func currentRouteSummaryText() -> String? {
+    private func displayRouteInfo() -> String? {
         if compositePolyline != nil {
-            return formatSummary(distance: compositeDistance, time: compositeTime)
+            return routeInfo(distance: compositeDistance, time: compositeTime)
         }
-        return activeRoute.map { formatSummary(distance: $0.distance, time: $0.expectedTravelTime) }
+        return activeRoute.map { routeInfo(distance: $0.distance, time: $0.expectedTravelTime) }
     }
 
-    private func formatSummary(distance: CLLocationDistance, time: TimeInterval) -> String {
+    private func routeInfo(distance: CLLocationDistance, time: TimeInterval) -> String {
         let km = distance / 1000.0
         let distanceText = String(format: "%.1f km", km)
 
@@ -650,6 +610,46 @@ struct MapView: View {
             : String(format: "%d min", minutes)
 
         return "\(timeText) • \(distanceText)"
+    }
+    
+    private struct CarRouteInfo {
+        let socText: String
+        let rangeText: String
+        let isCritical: Bool
+    }
+
+    private func displayCarRouteInfo() -> CarRouteInfo? {
+        guard let car = selectedCar else { return nil }
+
+        let tripKm: Double? = compositePolyline != nil
+            ? compositeDistance / 1000
+            : activeRoute.map { $0.distance / 1000 }
+
+        guard let tripKm else { return nil }
+
+        let startKm = Calc.extractNumber(from: car.remainingRangeKm) ?? 0
+        let maxKm = Calc.extractNumber(from: car.maxRangeKm) ?? 0
+
+        let adjustedKm = max(0, startKm - tripKm)
+        let socPercent = maxKm > 0 ? max(0, min(1, adjustedKm / maxKm)) * 100 : 0
+
+        let rangeText = String(format: "%.0f km", adjustedKm.rounded())
+        let socText = String(format: "%.0f%%", socPercent.rounded())
+        let isCritical = socPercent <= 0
+
+        return CarRouteInfo(socText: socText, rangeText: rangeText, isCritical: isCritical)
+    }
+    
+    private var hasActiveRoute: Bool {
+        activeRoutePolyline != nil || compositePolyline != nil
+    }
+
+    private func showTransientToast(_ text: String) {
+        navToastText = text
+        showNavToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showNavToast = false
+        }
     }
 }
 
