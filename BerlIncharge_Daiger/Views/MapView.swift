@@ -15,12 +15,7 @@ struct MapView: View {
     @State private var stations: [Station] = []
     @Binding var selectedCar: Car?
 
-    @State private var position: MapCameraPosition = .region(
-        MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 52.520008, longitude: 13.404954),
-            span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
-        )
-    )
+    @State private var position: MapCameraPosition = .region( MKCoordinateRegion( center: CLLocationCoordinate2D(latitude: 52.520008, longitude: 13.404954), span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)))
     
     @State private var selectedStation: Station?
     @State private var berlinPolylines: [MKPolyline] = []
@@ -119,7 +114,7 @@ struct MapView: View {
                             VStack(alignment: .trailing, spacing: 6) {
                                 HStack(spacing: 6) {
                                     Button {
-                                        Task { await buildCompositeRouteOptimized(to: item, requireDC: false) }
+                                        Task { await requestAssembledRoute(to: item, requireDC: false) }
                                     } label: {
                                         Text("AC")
                                             .font(.subheadline).bold()
@@ -133,7 +128,7 @@ struct MapView: View {
                                     .buttonStyle(.plain)
 
                                     Button {
-                                        Task { await buildCompositeRouteOptimized(to: item, requireDC: true) }
+                                        Task { await requestAssembledRoute(to: item, requireDC: true) }
                                     } label: {
                                         Text("DC")
                                             .font(.subheadline).bold()
@@ -147,7 +142,7 @@ struct MapView: View {
                                     .buttonStyle(.plain)
 
                                     Button {
-                                        Task { await requestRoute(to: item) }
+                                        Task { await requestRouteToItem(to: item) }
                                     } label: {
                                         HStack(spacing: 6) {
                                             Image(systemName: "car")
@@ -332,7 +327,7 @@ struct MapView: View {
                     station: station,
                     onClose: { selectedStation = nil },
                     onNavigate: { target in
-                        Task { await requestRoute(to: target) }
+                        Task { await requestRouteToStation(to: target) }
                     }
                 )
                 .presentationDetents([.medium, .large])
@@ -366,8 +361,7 @@ struct MapView: View {
                 searchResultItem = first
 
                 let coord = first.placemark.coordinate
-                let region = MKCoordinateRegion(center: coord,
-                                                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02))
+                let region = MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02))
                 position = .region(region)
             } else {
                 searchResultItem = nil
@@ -379,7 +373,7 @@ struct MapView: View {
     }
 
     
-    private func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
+    private func requestRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> MKRoute? {
         let req = MKDirections.Request()
         req.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
         req.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
@@ -396,7 +390,7 @@ struct MapView: View {
     }
     
     @MainActor
-    private func requestRoute(to coordinate: CLLocationCoordinate2D, displayName: String?) async {
+    private func requestRouteToCoord(to coordinate: CLLocationCoordinate2D, displayName: String?) async {
         guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
             print("Keine Nutzerposition verfügbar.")
             return
@@ -406,8 +400,8 @@ struct MapView: View {
         compositeDistance = 0
         compositeTime = 0
 
-        guard let route = await calculateRoute(from: userLocation, to: coordinate) else {
-            print("Berechnung fehlgeschlagen: calculateRoute lieferte nil")
+        guard let route = await requestRoute(from: userLocation, to: coordinate) else {
+            print("Berechnung fehlgeschlagen: requestRoute lieferte nil")
             searchErrorMessage = "Route konnte nicht berechnet werden."
             return
         }
@@ -420,162 +414,139 @@ struct MapView: View {
     }
 
     @MainActor
-    private func requestRoute(to station: Station) async {
+    private func requestRouteToStation(to station: Station) async {
         selectedStation = nil
         searchResultItem = nil
         let coord = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
-        await requestRoute(to: coord, displayName: station.pointName)
+        await requestRouteToCoord(to: coord, displayName: station.pointName)
     }
 
     @MainActor
-    private func requestRoute(to item: MKMapItem) async {
+    private func requestRouteToItem(to item: MKMapItem) async {
         selectedStation = nil
         searchResultItem = nil
-        await requestRoute(to: item.placemark.coordinate, displayName: item.name)
+        await requestRouteToCoord(to: item.placemark.coordinate, displayName: item.name)
     }
     
-    
-    
-    
-    
-    
     @MainActor
-    private func buildCompositeRouteOptimized(to item: MKMapItem, requireDC: Bool) async {
-        guard let userLocation = viewModel.lastKnownLocation?.coordinate else {
-            print("Keine Nutzerposition verfügbar.")
-            return
-        }
-
-        guard let direct = await calculateRoute(from: userLocation, to: item.placemark.coordinate) else {
+    private func requestAssembledRoute(to item: MKMapItem, requireDC: Bool) async {
+        guard
+            let userLocation = viewModel.lastKnownLocation?.coordinate,
+            let directRoute = await requestRoute(from: userLocation, to: item.placemark.coordinate)
+        else {
             searchErrorMessage = "Direkte Route zum Ziel konnte nicht berechnet werden."
             return
         }
-        
-        let corridorMeters: CLLocationDistance = 2000
-        let deviationWeight: CLLocationDistance = 300
-        let candidateLimit = 30
 
-        let filtered = filterCandidatesAlongCorridor(
-            stations: stations,
-            requireDC: requireDC,
-            polyline: direct.polyline,
-            corridorMeters: corridorMeters
-        ).prefix(candidateLimit)
+        let radius: CLLocationDistance = 2000
+        let maxStations = 30
 
-        guard !filtered.isEmpty else {
+        let stationContainer = Array(
+            filterStationsInRadius(
+                stations: stations,
+                requireDC: requireDC,
+                polyline: directRoute.polyline,
+                radius: radius
+            ).prefix(maxStations)
+        )
+
+        guard !stationContainer.isEmpty else {
             searchErrorMessage = "Keine passende \(requireDC ? "DC" : "AC")-Station entlang der Route gefunden."
             searchResultItem = nil
             return
         }
 
-        var bestScore = Double.greatestFiniteMagnitude
-        var bestR1: MKRoute?
-        var bestR2: MKRoute?
+        func evaluateStationsInRadius(_ s: Station) async -> (score: Double, r1: MKRoute, r2: MKRoute)? {
+            let stationCoord = CLLocationCoordinate2D(latitude: s.latitude, longitude: s.longitude)
+            let distanceFromStationToRoute = distanceFromPointToPolyline(point: stationCoord, to: directRoute.polyline)
 
-        for station in filtered {
-            let c = CLLocationCoordinate2D(latitude: station.latitude, longitude: station.longitude)
-            let dev = distance(point: c, toPolyline: direct.polyline)
+            guard
+                let r1 = await requestRoute(from: userLocation, to: stationCoord),
+                let r2 = await requestRoute(from: stationCoord, to: item.placemark.coordinate)
+            else { return nil }
 
-            guard let r1 = await calculateRoute(from: userLocation, to: c) else { continue }
-            guard let r2 = await calculateRoute(from: c, to: item.placemark.coordinate) else { continue }
+            let totalDistance = r1.distance + r2.distance
+            let score = Double(totalDistance) + Double(distanceFromStationToRoute)
+            return (score, r1, r2)
+        }
 
-            let total = r1.distance + r2.distance
-            let score = Double(total) + Double(dev + deviationWeight)
+        var bestStation: (score: Double, r1: MKRoute, r2: MKRoute)?
 
-            if score < bestScore {
-                bestScore = score
-                bestR1 = r1
-                bestR2 = r2
+        for s in stationContainer {
+            if let observedStation = await evaluateStationsInRadius(s) {
+                if let currentBestStation = bestStation {
+                    if observedStation.score < currentBestStation.score {
+                        bestStation = observedStation
+                    }
+                } else {
+                    bestStation = observedStation
+                }
             }
         }
 
-        guard let route1 = bestR1, let route2 = bestR2 else {
+        guard let bestAssembledRoute = bestStation else {
             searchErrorMessage = "Konnte keine geeignete Route über eine \(requireDC ? "DC" : "AC")-Station finden."
             return
         }
 
-        let mergedRoute = mergeRoute(routeA: route1, routeB: route2)
-
+        let assembledRoute = assembleRoute(routeA: bestAssembledRoute.r1, routeB: bestAssembledRoute.r2)
         activeRoute = nil
         activeRoutePolyline = nil
-
-        compositePolyline = mergedRoute
-        compositeDistance = route1.distance + route2.distance
-        compositeTime = route1.expectedTravelTime + route2.expectedTravelTime
+        compositePolyline = assembledRoute
+        compositeDistance = bestAssembledRoute.r1.distance + bestAssembledRoute.r2.distance
+        compositeTime = bestAssembledRoute.r1.expectedTravelTime + bestAssembledRoute.r2.expectedTravelTime
         searchResultItem = nil
 
-        let name = item.name ?? "Ziel"
-        showTransientToast("Navigiere via \(requireDC ? "DC" : "AC") zu \(name)")
+        showTransientToast("Navigiere via \(requireDC ? "DC" : "AC") zu \(item.name ?? "Ziel")")
     }
 
-    private func filterCandidatesAlongCorridor(stations: [Station],
-                                                   requireDC: Bool,
-                                                   polyline: MKPolyline,
-                                                   corridorMeters: CLLocationDistance) -> [Station] {
-            stations.filter { s in
-                let isDC = s.powerType.lowercased().contains("dc")
-                if requireDC != isDC { return false }
+    private func filterStationsInRadius(stations: [Station], requireDC: Bool, polyline: MKPolyline, radius: CLLocationDistance) -> [Station] {
+        stations
+            .filter { s in
+                let matchesType = Calc.isDC(powerType: s.powerType) == requireDC
+                guard matchesType else { return false }
+                
                 let p = CLLocationCoordinate2D(latitude: s.latitude, longitude: s.longitude)
-                let d = distance(point: p, toPolyline: polyline)
-                return d <= corridorMeters
+                return distanceFromPointToPolyline(point: p, to: polyline) <= radius
             }
             .sorted { a, b in
                 let pa = CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude)
                 let pb = CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
-                return distance(point: pa, toPolyline: polyline) < distance(point: pb, toPolyline: polyline)
+                return distanceFromPointToPolyline(point: pa, to: polyline) < distanceFromPointToPolyline(point: pb, to: polyline)
             }
+    }
+
+    private func distanceFromPointToPolyline(point: CLLocationCoordinate2D, to polyline: MKPolyline) -> CLLocationDistance {
+        let coords = polyline.coordinates
+        guard coords.count > 1 else { return .greatestFiniteMagnitude }
+
+        var minDist = CLLocationDistance.greatestFiniteMagnitude
+        for i in 0..<(coords.count - 1) {
+            let a = coords[i], b = coords[i + 1]
+            minDist = min(minDist, distanceFromPointToSegment(point, from: a, to: b))
         }
+        return minDist
+    }
 
-        private func distance(point: CLLocationCoordinate2D, toPolyline polyline: MKPolyline) -> CLLocationDistance {
-            let coords = polyline.coordinates
-            guard coords.count > 1 else { return .greatestFiniteMagnitude }
+    private func distanceFromPointToSegment(_ p: CLLocationCoordinate2D, from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> CLLocationDistance {
+        let stationMapPoint = MKMapPoint(p)
+        let startMapPoint = MKMapPoint(a)
+        let endMapPoint = MKMapPoint(b)
+        
+        let startToStationVectorX = stationMapPoint.x - startMapPoint.x
+        let startToStationVectorY = stationMapPoint.y - startMapPoint.y
+        let startToEndVectorX = endMapPoint.x - startMapPoint.x
+        let startToEndVectorY = endMapPoint.y - startMapPoint.y
+        
+        let startToEndVectorSquare = startToEndVectorX * startToEndVectorX + startToEndVectorY * startToEndVectorY
+        if startToEndVectorSquare == 0 { return stationMapPoint.distance(to: startMapPoint) }
+        
+        let projectedParameter = max(0, min(1, (startToStationVectorX * startToEndVectorX + startToStationVectorY * startToEndVectorY) / startToEndVectorSquare))
+        let projectedMapPoint = MKMapPoint(x: startMapPoint.x + projectedParameter * startToEndVectorX, y: startMapPoint.y + projectedParameter * startToEndVectorY)
+        return stationMapPoint.distance(to: projectedMapPoint)
+    }
 
-            var minDist = CLLocationDistance.greatestFiniteMagnitude
-
-            for i in 0..<(coords.count - 1) {
-                let a = coords[i]
-                let b = coords[i + 1]
-                let d = distanceFromPoint(point, toSegmentFrom: a, to: b)
-                if d < minDist { minDist = d }
-            }
-            return minDist
-        }
-
-        private func distanceFromPoint(_ p: CLLocationCoordinate2D,
-                                       toSegmentFrom a: CLLocationCoordinate2D,
-                                       to b: CLLocationCoordinate2D) -> CLLocationDistance {
-
-            let pMP = MKMapPoint(p)
-            let aMP = MKMapPoint(a)
-            let bMP = MKMapPoint(b)
-
-            let apx = pMP.x - aMP.x
-            let apy = pMP.y - aMP.y
-            let abx = bMP.x - aMP.x
-            let aby = bMP.y - aMP.y
-            let ab2 = abx * abx + aby * aby
-
-            if ab2 == 0 {
-
-                return pMP.distance(to: aMP)
-            }
-
-            let t = max(0, min(1, (apx * abx + apy * aby) / ab2))
-            let proj = MKMapPoint(x: aMP.x + t * abx, y: aMP.y + t * aby)
-            return pMP.distance(to: proj)
-        }
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    private func mergeRoute(routeA: MKRoute, routeB: MKRoute) -> MKPolyline {
+    private func assembleRoute(routeA: MKRoute, routeB: MKRoute) -> MKPolyline {
         var coordsA = routeA.polyline.coordinates
         let coordsB = routeB.polyline.coordinates
         coordsA.append(contentsOf: coordsB)
