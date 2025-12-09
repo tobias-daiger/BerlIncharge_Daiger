@@ -27,7 +27,6 @@ struct MapView: View {
     @State private var compositeTime: TimeInterval = 0
     @State private var searchText: String = ""
     @State private var searchResultItem: MKMapItem?
-    @State private var isSearching: Bool = false
     @State private var searchErrorMessage: String?
     @State private var showNavToast: Bool = false
     @State private var navToastText: String = ""
@@ -318,10 +317,6 @@ struct MapView: View {
             .onSubmit(of: .search) {
                 Task { await performSearch() }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                }
-            }
             .sheet(item: $selectedStation) { station in
                 MapDetailView(
                     station: station,
@@ -347,9 +342,6 @@ struct MapView: View {
     private func performSearch() async {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
-
-        isSearching = true
-        defer { isSearching = false }
 
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
@@ -456,21 +448,21 @@ struct MapView: View {
             return
         }
 
-        func evaluateStationsInRadius(_ s: Station) async -> (score: Double, r1: MKRoute, r2: MKRoute)? {
+        func evaluateStationsInRadius(_ s: Station) async -> (score: Double, userToStationRoute: MKRoute, StationToItemRoute: MKRoute)? {
             let stationCoord = CLLocationCoordinate2D(latitude: s.latitude, longitude: s.longitude)
             let distanceFromStationToRoute = distanceFromPointToPolyline(point: stationCoord, to: directRoute.polyline)
 
             guard
-                let r1 = await requestRoute(from: userLocation, to: stationCoord),
-                let r2 = await requestRoute(from: stationCoord, to: item.placemark.coordinate)
+                let userToStationRoute = await requestRoute(from: userLocation, to: stationCoord),
+                let StationToItemRoute = await requestRoute(from: stationCoord, to: item.placemark.coordinate)
             else { return nil }
 
-            let totalDistance = r1.distance + r2.distance
+            let totalDistance = userToStationRoute.distance + StationToItemRoute.distance
             let score = Double(totalDistance) + Double(distanceFromStationToRoute)
-            return (score, r1, r2)
+            return (score, userToStationRoute, StationToItemRoute)
         }
 
-        var bestStation: (score: Double, r1: MKRoute, r2: MKRoute)?
+        var bestStation: (score: Double, userToStationRoute: MKRoute, StationToItemRoute: MKRoute)?
 
         for s in stationContainer {
             if let observedStation = await evaluateStationsInRadius(s) {
@@ -489,30 +481,24 @@ struct MapView: View {
             return
         }
 
-        let assembledRoute = assembleRoute(routeA: bestAssembledRoute.r1, routeB: bestAssembledRoute.r2)
+        let assembledRoute = assembleRoute(routeA: bestAssembledRoute.userToStationRoute, routeB: bestAssembledRoute.StationToItemRoute)
         activeRoute = nil
         activeRoutePolyline = nil
         compositePolyline = assembledRoute
-        compositeDistance = bestAssembledRoute.r1.distance + bestAssembledRoute.r2.distance
-        compositeTime = bestAssembledRoute.r1.expectedTravelTime + bestAssembledRoute.r2.expectedTravelTime
+        compositeDistance = bestAssembledRoute.userToStationRoute.distance + bestAssembledRoute.StationToItemRoute.distance
+        compositeTime = bestAssembledRoute.userToStationRoute.expectedTravelTime + bestAssembledRoute.StationToItemRoute.expectedTravelTime
         searchResultItem = nil
 
         showTransientToast("Navigiere via \(requireDC ? "DC" : "AC") zu \(item.name ?? "Ziel")")
     }
 
     private func filterStationsInRadius(stations: [Station], requireDC: Bool, polyline: MKPolyline, radius: CLLocationDistance) -> [Station] {
-        stations
-            .filter { s in
+        stations.filter { s in
                 let matchesType = Calc.isDC(powerType: s.powerType) == requireDC
                 guard matchesType else { return false }
                 
                 let p = CLLocationCoordinate2D(latitude: s.latitude, longitude: s.longitude)
                 return distanceFromPointToPolyline(point: p, to: polyline) <= radius
-            }
-            .sorted { a, b in
-                let pa = CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude)
-                let pb = CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
-                return distanceFromPointToPolyline(point: pa, to: polyline) < distanceFromPointToPolyline(point: pb, to: polyline)
             }
     }
 
@@ -682,8 +668,6 @@ private struct MapDetailView: View {
     let onClose: () -> Void
     let onNavigate: (Station) -> Void
 
-    @State private var showToast = false
-
     private var gridItems: [GridItem] {
         [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
     }
@@ -702,10 +686,7 @@ private struct MapDetailView: View {
                                 .lineLimit(2)
                         }
 
-                        Button(action: {
-                            onNavigate(station)
-                            triggerToast()
-                        }) {
+                        Button(action: {onNavigate(station)}){
                             HStack(spacing: 8) {
                                 Image(systemName: "car")
                                 Text("Navigation")
@@ -748,15 +729,6 @@ private struct MapDetailView: View {
                             .imageScale(.large)
                     }
                 }
-            }
-        }
-    }
-
-    private func triggerToast() {
-        showToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.spring(duration: 0.35)) {
-                showToast = false
             }
         }
     }
