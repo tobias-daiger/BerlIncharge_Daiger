@@ -30,7 +30,6 @@ struct Calc {
         ]
     }
     
-    // Neu: generischer Number-Extractor für Werte in Strings (mit Komma-/Punkt-Unterstützung)
     static func extractNumber(from s: String) -> Double? {
         let digits = s
             .replacingOccurrences(of: ",", with: ".")
